@@ -39,3 +39,11 @@
 
 # debug information files
 *.dwo
+
+#data for columnar engine
+*.csv
+*.xyi
+
+#local folders
+docs
+build
