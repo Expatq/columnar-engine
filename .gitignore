@@ -47,3 +47,12 @@
 #local folders
 docs
 build
+
+#markdown files
+*.md
+
+#local files
+.clangd
+.cache
+
+
