@@ -25,9 +25,9 @@ enum class DataType : uint8_t {
 using AnyColumnType =
     std::variant<int16_t, int32_t, int64_t, bool, std::string>;
 
-using ColumnData = std::variant<std::vector<int16_t>, std::vector<int32_t>,
-                                std::vector<int64_t>, std::vector<bool>,
-                                std::vector<std::string>>;
+using AnyColumnData = std::variant<std::vector<int16_t>, std::vector<int32_t>,
+                                   std::vector<int64_t>, std::vector<bool>,
+                                   std::vector<std::string>>;
 
 template <typename... Ts>
 struct overloaded : Ts... {
@@ -52,7 +52,7 @@ DataType ParseDataType(const std::string& typeName);
 
 size_t GetVariantIndex(DataType type);
 
-ColumnData CreateEmptyColumnData(DataType type);
+AnyColumnData CreateEmptyColumnData(DataType type);
 
 // Visitors for working with column data
 
