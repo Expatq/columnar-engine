@@ -92,7 +92,7 @@ size_t GetVariantIndex(DataType type) {
     }
 }
 
-ColumnData CreateEmptyColumnData(DataType type) {
+AnyColumnData CreateEmptyColumnData(DataType type) {
     switch (type) {
         case DataType::INT16:
             return std::vector<int16_t>();
