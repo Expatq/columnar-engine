@@ -19,6 +19,13 @@ public:
 
     static Batch CreateEmpty(const Schema& schema);
 
+    // batch is move only
+    Batch(const Batch&) = delete;
+    Batch& operator=(const Batch&) = delete;
+
+    Batch(Batch&&) noexcept = default;
+    Batch& operator=(Batch&&) noexcept = default;
+
     // Get meta
 
     size_t GetColumnCount() const;

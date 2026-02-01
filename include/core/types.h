@@ -36,8 +36,6 @@ struct overloaded : Ts... {
 
 // File format constants
 
-constexpr uint32_t kMagicNumber =
-    0x31495958;  // 'X'=0x58, 'Y'=0x59, 'I'=0x49, '1'=0x31
 constexpr size_t kFileHeaderSize = 64;
 constexpr size_t kRowGroupHeaderSize = 32;
 constexpr size_t kChunkHeaderSize = 24;
