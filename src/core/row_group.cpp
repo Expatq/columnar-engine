@@ -7,7 +7,7 @@ namespace Columnar {
 
 RowGroup::RowGroup(Batch batch)
     : batch_(std::move(batch)) {
-    meta_.rowCount = static_cast<uint32_t>(batch.GetColumnCount());
+    meta_.rowCount = static_cast<uint32_t>(batch_.GetRowCount());
 }
 
 RowGroup::RowGroup(Batch batch, RowGroupMeta meta)

@@ -8,4 +8,4 @@ add_library(
 
 target_include_directories(columnar_parser PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
-target_link_libraries(columnar_parser PUBLIC columnar_core)
+target_link_libraries(columnar_parser PUBLIC columnar_core columnar_util)

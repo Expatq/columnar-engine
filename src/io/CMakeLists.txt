@@ -1,6 +1,7 @@
 add_library(
     columnar_io
     STATIC
+    binary_io.cpp
     csv_reader.cpp
     csv_writer.cpp
     format_writer.cpp
