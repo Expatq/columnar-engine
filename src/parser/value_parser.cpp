@@ -18,7 +18,7 @@ namespace {
 
 // Parsers
 
-int64_t ParseInt16(const std::string& str) {
+int16_t ParseInt16(const std::string& str) {
     std::string stripped = str::strip(str);
     if (stripped.empty()) {
         throw std::invalid_argument("Cannot parse empty string as int16");
@@ -35,7 +35,7 @@ int64_t ParseInt16(const std::string& str) {
     return result;
 }
 
-int64_t ParseInt32(const std::string& str) {
+int32_t ParseInt32(const std::string& str) {
     std::string stripped = str::strip(str);
     if (stripped.empty()) {
         throw std::invalid_argument("Cannot parse empty string as int32");
