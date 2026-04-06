@@ -55,4 +55,5 @@ build
 .clangd
 .cache
 
+columnar-engine-docs
 
