@@ -1,9 +1,10 @@
 #pragma once
 
+#include <io/binary/binary_io.h>
+
 #include <core/column.h>
 #include <core/row_group.h>
 #include <core/schema.h>
-#include <io/binary_io.h>
 
 #include <string>
 #include <vector>

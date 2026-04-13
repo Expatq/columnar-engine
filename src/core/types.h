@@ -11,7 +11,7 @@ namespace Columnar::Types {
 
 // Data types
 
-enum class DataType : uint8_t {
+enum class LogicalType : uint8_t {
     INT16 = 0,
     INT32 = 1,
     INT64 = 2,
@@ -21,6 +21,16 @@ enum class DataType : uint8_t {
     DATE = 6,      // TODO: add date support
     TIMESTAMP = 7  // TODO: add timestamp support
 };
+
+enum class PhysicalType : uint8_t {
+    INT16 = 0,
+    INT32 = 1,
+    INT64 = 2,
+    BOOL = 3,
+    STRING = 4
+};
+
+PhysicalType ToPhysical(LogicalType logical);
 
 using AnyColumnType =
     std::variant<int16_t, int32_t, int64_t, bool, std::string>;
@@ -42,15 +52,17 @@ constexpr size_t kChunkHeaderSize = 24;
 
 // Helper functions
 
-size_t GetTypeSize(DataType type);
-std::string GetTypeName(DataType type);
+size_t GetTypeSize(LogicalType type);
+std::string GetTypeName(LogicalType type);
 
-bool IsFixedSize(DataType type);
-DataType ParseDataType(const std::string& typeName);
+bool IsFixedSize(LogicalType type);
+LogicalType ParseDataType(const std::string& typeName);
 
-size_t GetVariantIndex(DataType type);
+inline size_t GetVariantIndex(PhysicalType physical_type) {
+    return static_cast<size_t>(physical_type);
+}
 
-AnyColumnData CreateEmptyColumnData(DataType type);
+AnyColumnData CreateEmptyColumnData(PhysicalType type);
 
 // Visitors for working with column data
 

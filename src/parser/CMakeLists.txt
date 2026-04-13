@@ -1,11 +1,10 @@
-add_library(
-    columnar_parser
-    SHARED
-    csv_parser.cpp
-    schema_parser.cpp
-    value_parser.cpp
+add_subdirectory(csv)
+add_subdirectory(format)
+
+add_library(parser INTERFACE)
+target_link_directories(
+    parser
+    INTERFACE
+    csv_parser
+    format_parser
 )
-
-target_include_directories(columnar_parser PUBLIC ${CMAKE_SOURCE_DIR}/include)
-
-target_link_libraries(columnar_parser PUBLIC columnar_core columnar_util)

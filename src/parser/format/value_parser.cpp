@@ -173,23 +173,24 @@ std::string FormatTimestamp(int64_t secondsSinceEpoch) {
 
 }  // namespace
 
-Types::AnyColumnType ParseValue(const std::string& str, Types::DataType type) {
+Types::AnyColumnType ParseValue(const std::string& str,
+                                Types::PhysicalType type) {
     switch (type) {
-        case Types::DataType::INT16:
+        case Types::PhysicalType::INT16:
             return ParseInt16(str);
-        case Types::DataType::INT32:
+        case Types::PhysicalType::INT32:
             return ParseInt32(str);
-        case Types::DataType::INT64:
+        case Types::PhysicalType::INT64:
             return ParseInt64(str);
-        case Types::DataType::BOOL:
+        case Types::PhysicalType::BOOL:
             return ParseBool(str);
-        case Types::DataType::STRING:
+        case Types::PhysicalType::STRING:
             return str;
-        case Types::DataType::DATE:
+        case Types::PhysicalType::DATE:
             return ParseDate(str);
-        case Types::DataType::TIMESTAMP:
+        case Types::PhysicalType::TIMESTAMP:
             return ParseTimestamp(str);
-        case Types::DataType::INT128:
+        case Types::PhysicalType::INT128:
             throw std::invalid_argument("INT128 parsing not implemented");
         default:
             throw std::invalid_argument("Unsupported data type for parsing");
@@ -197,17 +198,17 @@ Types::AnyColumnType ParseValue(const std::string& str, Types::DataType type) {
 }
 
 std::string ValueToString(const Types::AnyColumnType& value,
-                          Types::DataType type) {
+                          Types::PhysicalType type) {
     return std::visit(
         Types::overloaded{[](int16_t v) { return std::to_string(v); },
                           [type](int32_t v) {
-                              if (type == Types::DataType::DATE) {
+                              if (type == Types::PhysicalType::DATE) {
                                   return FormatDate(v);
                               }
                               return std::to_string(v);
                           },
                           [type](int64_t v) {
-                              if (type == Types::DataType::TIMESTAMP) {
+                              if (type == Types::PhysicalType::TIMESTAMP) {
                                   return FormatTimestamp(v);
                               }
                               return std::to_string(v);

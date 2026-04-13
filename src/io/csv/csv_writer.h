@@ -11,7 +11,7 @@ class CsvWriter {
 public:
     explicit CsvWriter(const std::string& filename);
 
-    void WriteBatch(const Batch& batch);
+    void WriteBatch(const RowGroup& batch);
     void Flush();
 
     size_t GetRowsWritten() const;

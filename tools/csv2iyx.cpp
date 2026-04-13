@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
         writer.Begin(schema);
 
         size_t batchNum = 0;
-        while (auto batch = reader.ReadBatch()) {
+        while (auto batch = reader.ReadRowGroup()) {
             Columnar::RowGroup rg(std::move(*batch));
             writer.WriteRowGroup(rg);
             std::cerr << "Batch " << ++batchNum << ": "

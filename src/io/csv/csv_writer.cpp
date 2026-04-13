@@ -1,7 +1,8 @@
-#include <core/batch.h>
+#include "csv_writer.h"
 
-#include <io/csv_writer.h>
-#include <parser/csv_parser.h>
+#include <parser/csv/csv_parser.h>
+
+#include <core/batch.h>
 
 #include <stdexcept>
 #include <vector>
@@ -16,7 +17,7 @@ CsvWriter::CsvWriter(const std::string& filename)
     }
 }
 
-void CsvWriter::WriteBatch(const Batch& batch) {
+void CsvWriter::WriteBatch(const RowGroup& batch) {
     Schema schema = batch.GetSchema();
 
     for (size_t row = 0; row < batch.GetRowCount(); ++row) {

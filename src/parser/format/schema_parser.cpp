@@ -35,7 +35,7 @@ ColumnSchema ParseSchemaLine(const std::string& line, size_t lineNumber) {
                                  ": empty type name");
     }
 
-    Types::DataType type;
+    Types::PhysicalType type;
     try {
         type = Types::ParseDataType(typeName);
     } catch (const std::invalid_argument& inv_arg_exception) {

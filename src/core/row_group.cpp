@@ -1,41 +1,68 @@
-#include <core/batch.h>
-#include <core/row_group.h>
+#include "row_group.h"
+#include "column.h"
+#include "schema.h"
 
-#include <cstdint>
+#include <util/assert.h>
 
 namespace Columnar {
 
-RowGroup::RowGroup(Batch batch)
-    : batch_(std::move(batch)) {
-    meta_.rowCount = static_cast<uint32_t>(batch_.GetRowCount());
+RowGroup::RowGroup(Schema schema, std::vector<Column> columns)
+    : schema_(std::move(schema)),
+      columns_(std::move(columns)) {
+    Validate();
+    rowCount_ = columns_.empty() ? 0 : columns_[0].GetRowCount();
 }
 
-RowGroup::RowGroup(Batch batch, RowGroupMeta meta)
-    : batch_(std::move(batch)),
-      meta_(meta) {}
+RowGroup::RowGroup(RowGroup&& other) noexcept
+    : schema_(std::move(other.schema_)),
+      columns_(std::move(other.columns_)),
+      rowCount_(std::exchange(other.rowCount_, 0)) {}
 
-const Batch& RowGroup::GetBatch() const {
-    return batch_;
+RowGroup& RowGroup::operator=(RowGroup&& other) noexcept {
+    schema_ = std::move(other.schema_);
+    columns_ = std::move(other.columns_);
+    rowCount_ = std::exchange(other.rowCount_, 0);
+    return *this;
 }
 
-Batch& RowGroup::GetMutableBatch() {
-    return batch_;
+void RowGroup::Validate() const {
+    COLUMNAR_ASSERT(!columns_.empty(), "batch must have at least one column");
+    COLUMNAR_ASSERT(schema_.GetColumnCount() == columns_.size(),
+                    "RowGroup: schema and columns count mismatch");
+
+    const size_t expected = columns_[0].GetRowCount();
+    for (size_t i = 1; i < columns_.size(); ++i) {
+        COLUMNAR_ASSERT(
+            columns_[i].GetRowCount() == expected,
+            "row count mismatch in column: " + schema_.GetColumnName(i));
+        COLUMNAR_ASSERT(
+            columns_[i].GetType() == schema_.GetColumn(i).type,
+            "RowGroup: type mismatch in column " + schema_.GetColumnName(i));
+    }
 }
 
-Batch&& RowGroup::MoveBatch() {
-    return std::move(batch_);
+size_t RowGroup::GetColumnCount() const {
+    return columns_.size();
 }
 
-const RowGroupMeta& RowGroup::GetMeta() const {
-    return meta_;
+size_t RowGroup::GetRowCount() const {
+    return rowCount_;
 }
 
-RowGroupMeta& RowGroup::GetMutableMeta() {
-    return meta_;
+const Schema& RowGroup::GetSchema() const {
+    return schema_;
 }
 
-void RowGroup::SetMeta(RowGroupMeta meta) {
-    meta_ = meta;
+const Column& RowGroup::GetColumn(size_t index) const {
+    COLUMNAR_ASSERT(index < columns_.size(), "column index out of range");
+    return columns_[index];
+}
+
+const Column* RowGroup::FindColumn(const std::string& name) const {
+    auto idx = schema_.FindColumn(name);
+    COLUMNAR_ASSERT(idx.has_value(),
+                    "Batch::FindColumn: unknown column name: " + name);
+    return idx ? &columns_[*idx] : nullptr;
 }
 
 }  // namespace Columnar

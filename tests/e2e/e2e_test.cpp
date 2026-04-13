@@ -57,9 +57,9 @@ int64_t CalcNumericProduct(const std::string& filename, const Schema& schema) {
 
         for (size_t i = 0; i < schema.GetColumnCount(); ++i) {
             auto type = schema.GetColumn(i).type;
-            if (type == Types::DataType::INT16 ||
-                type == Types::DataType::INT32 ||
-                type == Types::DataType::INT64) {
+            if (type == Types::PhysicalType::INT16 ||
+                type == Types::PhysicalType::INT32 ||
+                type == Types::PhysicalType::INT64) {
                 product = (product * std::stoll(fields[i])) % kMod;
             }
         }

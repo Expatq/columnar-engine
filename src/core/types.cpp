@@ -2,110 +2,90 @@
 
 namespace Columnar::Types {
 
-size_t GetTypeSize(DataType type) {
+size_t GetTypeSize(LogicalType type) {
     switch (type) {
-        case DataType::INT16:
+        case LogicalType::INT16:
             return sizeof(int16_t);
-        case DataType::INT32:
+        case LogicalType::INT32:
             return sizeof(int32_t);
-        case DataType::INT64:
+        case LogicalType::INT64:
             return sizeof(int64_t);
-        case DataType::INT128:
+        case LogicalType::INT128:
             return sizeof(int64_t);  // TODO: fix sizeof int128
-        case DataType::BOOL:
+        case LogicalType::BOOL:
             return sizeof(bool);
-        case DataType::DATE:
+        case LogicalType::DATE:
             return sizeof(int32_t);
-        case DataType::TIMESTAMP:
+        case LogicalType::TIMESTAMP:
             return sizeof(int64_t);
-        case DataType::STRING:
+        case LogicalType::STRING:
             return 0;
         default:
             throw std::invalid_argument("Unknown data type");
     }
 }
 
-std::string GetTypeName(DataType type) {
+std::string GetTypeName(LogicalType type) {
     switch (type) {
-        case DataType::INT16:
+        case LogicalType::INT16:
             return "int16";
-        case DataType::INT32:
+        case LogicalType::INT32:
             return "int32";
-        case DataType::INT64:
+        case LogicalType::INT64:
             return "int64";
-        case DataType::INT128:
+        case LogicalType::INT128:
             return "int128";
-        case DataType::BOOL:
+        case LogicalType::BOOL:
             return "bool";
-        case DataType::STRING:
+        case LogicalType::STRING:
             return "string";
-        case DataType::DATE:
+        case LogicalType::DATE:
             return "date";
-        case DataType::TIMESTAMP:
+        case LogicalType::TIMESTAMP:
             return "timestamp";
         default:
             return "unknown";
     }
 }
 
-bool IsFixedSize(DataType type) {
-    return type != DataType::STRING;
+bool IsFixedSize(LogicalType type) {
+    return type != LogicalType::STRING;
 }
 
-DataType ParseDataType(const std::string& type_name) {
+LogicalType ParseDataType(const std::string& type_name) {
     if (type_name == "int16")
-        return DataType::INT16;
+        return LogicalType::INT16;
     if (type_name == "int32")
-        return DataType::INT32;
+        return LogicalType::INT32;
     if (type_name == "int64")
-        return DataType::INT64;
+        return LogicalType::INT64;
     if (type_name == "int128")
-        return DataType::INT128;
+        return LogicalType::INT128;
     if (type_name == "bool")
-        return DataType::BOOL;
+        return LogicalType::BOOL;
     if (type_name == "string")
-        return DataType::STRING;
+        return LogicalType::STRING;
     if (type_name == "date")
-        return DataType::DATE;
+        return LogicalType::DATE;
     if (type_name == "timestamp")
-        return DataType::TIMESTAMP;
+        return LogicalType::TIMESTAMP;
     throw std::invalid_argument("Unknown type name: " + type_name);
 }
 
-size_t GetVariantIndex(DataType type) {
+AnyColumnData CreateEmptyColumnData(LogicalType type) {
     switch (type) {
-        case DataType::INT16:
-            return 0;
-        case DataType::INT32:
-        case DataType::DATE:
-            return 1;
-        case DataType::INT64:
-        case DataType::INT128:
-        case DataType::TIMESTAMP:
-            return 2;
-        case DataType::BOOL:
-            return 3;
-        case DataType::STRING:
-            return 4;
-        default:
-            throw std::invalid_argument("Unknown data type");
-    }
-}
-
-AnyColumnData CreateEmptyColumnData(DataType type) {
-    switch (type) {
-        case DataType::INT16:
+        case LogicalType::INT16:
             return std::vector<int16_t>();
-        case DataType::INT32:
-        case DataType::DATE:
+        case LogicalType::INT32:
+        case LogicalType::DATE:
             return std::vector<int32_t>();
-        case DataType::INT64:
-        case DataType::INT128:
-        case DataType::TIMESTAMP:
+        case LogicalType::INT64:
+        case LogicalType::INT128:
+        case LogicalType::TIMESTAMP:
             return std::vector<int64_t>();
-        case DataType::BOOL:
+        case LogicalType::BOOL:
             return std::vector<bool>();
-        case DataType::STRING:
+        case LogicalType::STRING:
             return std::vector<std::string>();
         default:
             throw std::invalid_argument("Unknown data type");

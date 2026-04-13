@@ -1,10 +1,12 @@
-#include <io/format_writer.h>
+#include <io/binary/binary_io.h>
+#include <io/format/format_writer.h>
+
+#include <core/batch.h>
+#include <core/column.h>
+#include <core/row_group.h>
+
 #include <cstdint>
 #include <stdexcept>
-#include "core/batch.h"
-#include "core/column.h"
-#include "core/row_group.h"
-#include "io/binary_io.h"
 
 namespace Columnar::IO {
 
@@ -39,7 +41,7 @@ void FormatWriter::WriteRowGroup(const RowGroup& rowGroup) {
         throw std::logic_error("FormatWriter::End() already called");
     }
 
-    const Batch& batch = rowGroup.GetBatch();
+    const RowGroup& batch = rowGroup.GetBatch();
 
     RowGroupMeta meta;
     meta.offset = writer_.GetPosition();

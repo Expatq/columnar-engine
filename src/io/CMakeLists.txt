@@ -1,13 +1,12 @@
-add_library(
-    columnar_io
-    STATIC
-    binary_io.cpp
-    csv_reader.cpp
-    csv_writer.cpp
-    format_writer.cpp
-    format_reader.cpp
+add_subdirectory(binary)
+add_subdirectory(csv)
+add_subdirectory(format)
+
+add_library(columnar_io INTERFACE)
+
+target_link_libraries(
+    columnar_io 
+    INTERFACE
+    csv_io
+    format_io
 )
-
-target_include_directories(columnar_io PUBLIC ${CMAKE_SOURCE_DIR}/include)
-
-target_link_libraries(columnar_io PUBLIC columnar_core columnar_parser)

@@ -1,8 +1,9 @@
 #pragma once
 
+#include <io/binary/binary_io.h>
+
 #include <core/row_group.h>
 #include <core/schema.h>
-#include <io/binary_io.h>
 
 #include <optional>
 #include <string>
@@ -23,7 +24,7 @@ public:
 
     void Open();
 
-    std::optional<Batch> ReadBatch();
+    std::optional<RowGroup> ReadBatch();
     bool HasMore() const;
     RowGroup ReadRowGroup(size_t index);
 
@@ -48,7 +49,7 @@ private:
     void ReadHeader();
     void ReadSchema();
     void ReadFooter();
-    Column ReadColumn(const std::string& name, Types::DataType type,
+    Column ReadColumn(const std::string& name, Types::PhysicalType type,
                       size_t rowCount);
 };
 

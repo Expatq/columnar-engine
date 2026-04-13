@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
-#include <vector>
 
 namespace Columnar::IO {
 
