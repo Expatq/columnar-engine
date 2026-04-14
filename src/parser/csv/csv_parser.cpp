@@ -1,4 +1,6 @@
-#include <parser/csv_parser.h>
+#include "csv_parser.h"
+
+#include <util/assert.h>
 
 #include <stdexcept>
 
@@ -44,12 +46,9 @@ std::vector<std::string> ParseCsvLine(const std::string& line,
             }
         }
     }
-
     fields.push_back(currentField);
 
-    if (inQuotes) {
-        throw std::runtime_error("Unclosed quote in CSV line");
-    }
+    COLUMNAR_ASSERT(!inQuotes, "ParseCsvLine: Unclosed quote in CSV line");
 
     return fields;
 }

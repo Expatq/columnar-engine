@@ -9,7 +9,7 @@ namespace Columnar {
 
 class Column {
 public:
-    Column(Types::AnyColumnData data, Types::PhysicalType type);
+    Column(Types::AnyColumnData data, Types::PhysicalType physical);
 
     Types::PhysicalType GetType() const;
     size_t GetRowCount() const;

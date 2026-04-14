@@ -9,9 +9,10 @@
 
 namespace Columnar {
 
-ColumnSchema::ColumnSchema(std::string name, Types::PhysicalType type)
+ColumnSchema::ColumnSchema(std::string name, Types::LogicalType logical)
     : name(std::move(name)),
-      type(type) {
+      logical(logical),
+      physical(Types::ToPhysical(logical)) {
     COLUMNAR_ASSERT(!this->name.empty(), "ColumnSchema: name cannot be empty");
 }
 
@@ -23,13 +24,13 @@ Schema::Schema(std::vector<ColumnSchema> columns) {
 }
 
 void Schema::AddColumn(ColumnSchema column) {
-    COLUMNAR_ASSERT(!FindColumn(column.name),
+    COLUMNAR_ASSERT(!FindColumn(column.name).has_value(),
                     "Schema: duplicate column name '" + column.name + "'");
     columns_.push_back(std::move(column));
 }
 
-void Schema::AddColumn(const std::string& name, Types::PhysicalType type) {
-    AddColumn(ColumnSchema{name, type});
+void Schema::AddColumn(const std::string& name, Types::LogicalType logical) {
+    AddColumn(ColumnSchema{name, logical});
 }
 
 size_t Schema::GetColumnCount() const {
@@ -56,6 +57,10 @@ std::optional<size_t> Schema::FindColumn(const std::string& name) const {
             return i;
     }
     return std::nullopt;
+}
+
+bool Schema::IsEmpty() const {
+    return columns_.empty();
 }
 
 }  // namespace Columnar

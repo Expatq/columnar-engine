@@ -10,9 +10,10 @@ namespace Columnar {
 
 struct ColumnSchema {
     std::string name;
-    Types::PhysicalType type;
+    Types::LogicalType logical;
+    Types::PhysicalType physical;
 
-    ColumnSchema(std::string name, Types::PhysicalType type);
+    ColumnSchema(std::string name, Types::LogicalType logical);
 
     bool operator==(const ColumnSchema& other) const = default;
 };
@@ -25,12 +26,14 @@ public:
     explicit Schema(std::vector<ColumnSchema> columns);
 
     void AddColumn(ColumnSchema column);
-    void AddColumn(const std::string& name, Types::PhysicalType type);
+    void AddColumn(const std::string& name, Types::LogicalType logical);
 
     size_t GetColumnCount() const;
     const ColumnSchema& GetColumn(size_t index) const;
     std::string GetColumnName(size_t index) const;
     std::optional<size_t> FindColumn(const std::string& name) const;
+
+    bool IsEmpty() const;
 
     const_iterator begin() const { return columns_.begin(); }
 

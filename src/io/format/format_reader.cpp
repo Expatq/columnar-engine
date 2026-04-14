@@ -1,11 +1,11 @@
-#include <core/types.h>
+#include "format_reader.h"
 
-#include <io/binary_io.h>
-#include <io/format_reader.h>
+#include <io/binary/binary_io.h>
+
+#include <core/types.h>
 
 #include <cstdint>
 #include <stdexcept>
-#include "core/row_group.h"
 
 namespace Columnar::IO {
 

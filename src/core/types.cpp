@@ -1,31 +1,29 @@
 #include <core/types.h>
+#include <util/assert.h>
 
 namespace Columnar::Types {
 
-size_t GetTypeSize(LogicalType type) {
-    switch (type) {
+PhysicalType ToPhysical(LogicalType logical) {
+    switch (logical) {
         case LogicalType::INT16:
-            return sizeof(int16_t);
+            return PhysicalType::INT16;
         case LogicalType::INT32:
-            return sizeof(int32_t);
-        case LogicalType::INT64:
-            return sizeof(int64_t);
-        case LogicalType::INT128:
-            return sizeof(int64_t);  // TODO: fix sizeof int128
-        case LogicalType::BOOL:
-            return sizeof(bool);
         case LogicalType::DATE:
-            return sizeof(int32_t);
+            return PhysicalType::INT32;
+        case LogicalType::INT64:
+        case LogicalType::INT128:
         case LogicalType::TIMESTAMP:
-            return sizeof(int64_t);
+            return PhysicalType::INT64;
+        case LogicalType::BOOL:
+            return PhysicalType::BOOL;
         case LogicalType::STRING:
-            return 0;
+            return PhysicalType::STRING;
         default:
-            throw std::invalid_argument("Unknown data type");
+            COLUMNAR_ASSERT(false, "ToPhysical: unknown LogicalType");
     }
 }
 
-std::string GetTypeName(LogicalType type) {
+std::string GetLogicalTypeName(LogicalType type) {
     switch (type) {
         case LogicalType::INT16:
             return "int16";
@@ -44,15 +42,11 @@ std::string GetTypeName(LogicalType type) {
         case LogicalType::TIMESTAMP:
             return "timestamp";
         default:
-            return "unknown";
+            COLUMNAR_ASSERT(false, "GetLogicalTypeName: unknown LogicalType");
     }
 }
 
-bool IsFixedSize(LogicalType type) {
-    return type != LogicalType::STRING;
-}
-
-LogicalType ParseDataType(const std::string& type_name) {
+LogicalType ParseLogicalType(const std::string& type_name) {
     if (type_name == "int16")
         return LogicalType::INT16;
     if (type_name == "int32")
@@ -69,7 +63,7 @@ LogicalType ParseDataType(const std::string& type_name) {
         return LogicalType::DATE;
     if (type_name == "timestamp")
         return LogicalType::TIMESTAMP;
-    throw std::invalid_argument("Unknown type name: " + type_name);
+    COLUMNAR_ASSERT(false, "ParseLogicalType: unknown type name (" + type_name + ")");
 }
 
 AnyColumnData CreateEmptyColumnData(LogicalType type) {
@@ -91,11 +85,5 @@ AnyColumnData CreateEmptyColumnData(LogicalType type) {
             throw std::invalid_argument("Unknown data type");
     }
 }
-
-// Visitor implementations
-IMPL_CONST_VISITOR_FOR_ALL_TYPES(GetSizeVisitor, size_t, return data.size();)
-IMPL_MUTABLE_VISITOR_FOR_ALL_TYPES(ClearVisitor, void, data.clear();)
-IMPL_MUTABLE_VISITOR_FOR_ALL_TYPES(ReserveVisitor, void,
-                                   data.reserve(capacity);)
 
 }  // namespace Columnar::Types

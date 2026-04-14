@@ -18,8 +18,8 @@ enum class LogicalType : uint8_t {
     INT128 = 3,  // TODO: add int128 support
     BOOL = 4,
     STRING = 5,
-    DATE = 6,      // TODO: add date support
-    TIMESTAMP = 7  // TODO: add timestamp support
+    DATE = 6,
+    TIMESTAMP = 7
 };
 
 enum class PhysicalType : uint8_t {
@@ -32,7 +32,11 @@ enum class PhysicalType : uint8_t {
 
 PhysicalType ToPhysical(LogicalType logical);
 
-using AnyColumnType =
+inline size_t GetPhysVariantIndex(PhysicalType physical_type) {
+    return static_cast<size_t>(physical_type);
+}
+
+using AnyPhysicalType =
     std::variant<int16_t, int32_t, int64_t, bool, std::string>;
 
 using AnyColumnData = std::variant<std::vector<int16_t>, std::vector<int32_t>,
@@ -52,31 +56,17 @@ constexpr size_t kChunkHeaderSize = 24;
 
 // Helper functions
 
-size_t GetTypeSize(LogicalType type);
-std::string GetTypeName(LogicalType type);
-
-bool IsFixedSize(LogicalType type);
-LogicalType ParseDataType(const std::string& typeName);
-
-inline size_t GetVariantIndex(PhysicalType physical_type) {
-    return static_cast<size_t>(physical_type);
-}
-
+std::string GetLogicalTypeName(LogicalType type);
+LogicalType ParseLogicalType(const std::string& typeName);
 AnyColumnData CreateEmptyColumnData(PhysicalType type);
 
 // Visitors for working with column data
 
 struct GetSizeVisitor {
-    DECLARE_CONST_VISITOR_FOR_ALL_TYPES(size_t);
-};
-
-struct ClearVisitor {
-    DECLARE_MUTUABLE_VISITOR_FOR_ALL_TYPES(void);
-};
-
-struct ReserveVisitor {
-    size_t capacity;
-    DECLARE_MUTUABLE_VISITOR_FOR_ALL_TYPES(void);
+    template <typename T>
+    std::size_t operator()(const std::vector<T>& vec) const {
+        return vec.size();
+    }
 };
 
 }  // namespace Columnar::Types

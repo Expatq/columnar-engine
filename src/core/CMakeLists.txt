@@ -5,7 +5,6 @@ add_library(
     column.cpp
     schema.cpp
     row_group.cpp
-    row_group.cpp
 )
 
 target_include_directories(columnar_core PUBLIC ${CMAKE_SOURCE_DIR}/src)

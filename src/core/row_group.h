@@ -15,9 +15,6 @@ class RowGroup {
 public:
     explicit RowGroup(Schema schema, std::vector<Column> columns);
 
-    RowGroup(const RowGroup&) = delete;
-    RowGroup& operator=(const RowGroup&) = delete;
-
     RowGroup(RowGroup&&) noexcept;
     RowGroup& operator=(RowGroup&&) noexcept;
 
@@ -33,6 +30,9 @@ public:
     const_iterator end() const { return columns_.end(); }
 
 private:
+    RowGroup(const RowGroup&) = delete;
+    RowGroup& operator=(const RowGroup&) = delete;
+
     void Validate() const;
 
 private:

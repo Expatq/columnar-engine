@@ -14,7 +14,7 @@ Column::Column(Types::AnyColumnData data, Types::PhysicalType type)
 }
 
 void Column::Validate() const {
-    COLUMNAR_ASSERT(data_.index() == Types::GetVariantIndex(type_),
+    COLUMNAR_ASSERT(data_.index() == Types::GetPhysVariantIndex(type_),
                     "data variant does not match type");
 }
 
@@ -38,7 +38,8 @@ const std::vector<T>& Column::GetTypedData() const {
 }
 
 std::string Column::GetValueAsString(size_t row) const {
-    COLUMNAR_ASSERT(row < GetRowCount(), "row index out of range");
+    COLUMNAR_ASSERT(row < GetRowCount(),
+                    "Column::GetValueAsString: row out of range");
 
     return std::visit(
         Types::overloaded{

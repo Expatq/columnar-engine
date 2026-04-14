@@ -26,7 +26,8 @@ RowGroup& RowGroup::operator=(RowGroup&& other) noexcept {
 }
 
 void RowGroup::Validate() const {
-    COLUMNAR_ASSERT(!columns_.empty(), "batch must have at least one column");
+    COLUMNAR_ASSERT(!columns_.empty(),
+                    "RowGroup: must have at least one column");
     COLUMNAR_ASSERT(schema_.GetColumnCount() == columns_.size(),
                     "RowGroup: schema and columns count mismatch");
 
@@ -36,7 +37,7 @@ void RowGroup::Validate() const {
             columns_[i].GetRowCount() == expected,
             "row count mismatch in column: " + schema_.GetColumnName(i));
         COLUMNAR_ASSERT(
-            columns_[i].GetType() == schema_.GetColumn(i).type,
+            columns_[i].GetType() == schema_.GetColumn(i).physical,
             "RowGroup: type mismatch in column " + schema_.GetColumnName(i));
     }
 }

@@ -30,7 +30,7 @@ private:
     size_t lineNumber_ = 0;
 
     std::optional<std::string> ReadLine();
-    void AppendToBuffer(std::string&& line, RowGroup& batch);
+    void AppendToBuffer(size_t colIdx, const std::string& value);
     void ResetBuffers();
 };
 

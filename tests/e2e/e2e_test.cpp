@@ -56,7 +56,7 @@ int64_t CalcNumericProduct(const std::string& filename, const Schema& schema) {
         }
 
         for (size_t i = 0; i < schema.GetColumnCount(); ++i) {
-            auto type = schema.GetColumn(i).type;
+            auto type = schema.GetColumn(i).physical;
             if (type == Types::PhysicalType::INT16 ||
                 type == Types::PhysicalType::INT32 ||
                 type == Types::PhysicalType::INT64) {
@@ -147,8 +147,8 @@ TEST_F(FixtureE2E, CsvToIyxToCsvWithNumericSum) {
             EXPECT_EQ(iyxSchema.GetColumn(i).name,
                       inputSchema.GetColumn(i).name)
                 << "Column " << i << " name mismatch";
-            EXPECT_EQ(iyxSchema.GetColumn(i).type,
-                      inputSchema.GetColumn(i).type)
+            EXPECT_EQ(iyxSchema.GetColumn(i).physical,
+                      inputSchema.GetColumn(i).physical)
                 << "Column " << i << " type mismatch";
         }
 

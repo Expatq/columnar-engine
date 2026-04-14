@@ -1,103 +1,86 @@
+#include "schema_parser.h"
+
+#include <parser/csv/csv_parser.h>
+
 #include <core/schema.h>
 #include <core/types.h>
-#include <parser/csv_parser.h>
-#include <parser/schema_parser.h>
 
 #include <util/str.h>
 
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include "util/assert.h"
 
 namespace Columnar::Parser {
 
-ColumnSchema ParseSchemaLine(const std::string& line, size_t lineNumber) {
+namespace {
+
+ColumnSchema ParseSchemaLine(const std::string& line) {
     auto fields = ParseCsvLine(line);
 
-    if (fields.size() != 2) {
-        throw std::runtime_error(
-            "Invalid schema line " + std::to_string(lineNumber) +
-            ": expected 'column_name,type_name', got: " + line);
-    }
+    COLUMNAR_ASSERT(fields.size() == 2,
+                    "ParseSchemaLine: Invalid schema line, expected "
+                    "'column_name,type_name', got: " +
+                        line);
 
     std::string columnName = str::strip(fields[0]);
     std::string typeName = str::strip(fields[1]);
 
-    if (columnName.empty()) {
-        throw std::runtime_error("Invalid schema line " +
-                                 std::to_string(lineNumber) +
-                                 ": empty column name");
-    }
+    COLUMNAR_ASSERT(!columnName.empty(),
+                    "ParseSchemaLine: schema contains empty column name");
+    COLUMNAR_ASSERT(!typeName.empty(),
+                    "ParseSchemaLine: schema contains empty type name");
 
-    if (typeName.empty()) {
-        throw std::runtime_error("Invalid schema line " +
-                                 std::to_string(lineNumber) +
-                                 ": empty type name");
-    }
-
-    Types::PhysicalType type;
-    try {
-        type = Types::ParseDataType(typeName);
-    } catch (const std::invalid_argument& inv_arg_exception) {
-        throw std::runtime_error("Invalid schema line " +
-                                 std::to_string(lineNumber) +
-                                 ": unknown type '" + typeName + "'");
-    }
+    Types::LogicalType type = Types::ParseLogicalType(typeName);
 
     return ColumnSchema(columnName, type);
 }
 
+}  // namespace
+
 Schema LoadSchemaFromCsv(const std::string& filename) {
     std::ifstream input(filename);
-    if (!input.is_open()) {
-        throw std::runtime_error("Cannot open schema file: " + filename);
-    }
+    COLUMNAR_ASSERT(input.is_open(),
+                    "LoadSchemaFromCsv: Cannot open schema file: " + filename);
 
     Schema schema;
     std::string line;
-    size_t lineNumber = 0;
 
     while (std::getline(input, line)) {
-        ++lineNumber;
-
         std::string stripped = str::strip(line);
         if (stripped.empty()) {
             continue;
         }
 
-        ColumnSchema column = ParseSchemaLine(line, lineNumber);
-
-        if (schema.HasColumn(column.name)) {
-            throw std::runtime_error("Duplicate column name at line " +
-                                     std::to_string(lineNumber) + ": " +
-                                     column.name);
-        }
+        ColumnSchema column = ParseSchemaLine(line);
+        COLUMNAR_ASSERT(!schema.FindColumn(column.name),
+                        "LoadSchemaFromCsv: duplicate column name in schema '" +
+                            column.name + "'");
 
         schema.AddColumn(column);
     }
+    COLUMNAR_ASSERT(
+        !schema.IsEmpty(),
+        "LoadSchemaFromCsv: Schema file is empty '" + filename + "'");
 
-    if (schema.IsEmpty()) {
-        throw std::runtime_error("Schema file is empty: " + filename);
-    }
-
+    input.close();
     return schema;
 }
 
 void SaveSchemaToCsv(const Schema& schema, const std::string& outFilename) {
     std::ofstream output(outFilename);
-    if (!output.is_open()) {
-        throw std::runtime_error("Cannot create schema file: " + outFilename);
-    }
+    COLUMNAR_ASSERT(output.is_open(),
+                    "Cannot create schema file: " + outFilename);
 
     for (const auto& column : schema) {
-        std::vector<std::string> fields = {column.name,
-                                           Types::GetTypeName(column.type)};
+        std::vector<std::string> fields = {
+            column.name, Types::GetLogicalTypeName(column.logical)};
         output << MergeFieldsInLine(fields) << '\n';
     }
 
-    if (!output.good()) {
-        throw std::runtime_error("Error writing schema file: " + outFilename);
-    }
+    COLUMNAR_ASSERT(output.good(), "Error writing schema file: " + outFilename);
+    output.close();
 }
 
 }  // namespace Columnar::Parser

@@ -5,10 +5,10 @@
 
 namespace Columnar::Parser {
 
-Types::AnyColumnType ParseValue(const std::string& str,
-                                Types::PhysicalType type);
+Types::AnyPhysicalType ParseValue(const std::string& str,
+                                  Types::PhysicalType type);
 
-std::string ValueToString(const Types::AnyColumnType& value,
+std::string ValueToString(const Types::AnyPhysicalType& value,
                           Types::PhysicalType type);
 
 }  // namespace Columnar::Parser
