@@ -66,23 +66,20 @@ LogicalType ParseLogicalType(const std::string& type_name) {
     COLUMNAR_ASSERT(false, "ParseLogicalType: unknown type name (" + type_name + ")");
 }
 
-AnyColumnData CreateEmptyColumnData(LogicalType type) {
+AnyColumnData CreateEmptyColumnData(PhysicalType type) {
     switch (type) {
-        case LogicalType::INT16:
-            return std::vector<int16_t>();
-        case LogicalType::INT32:
-        case LogicalType::DATE:
-            return std::vector<int32_t>();
-        case LogicalType::INT64:
-        case LogicalType::INT128:
-        case LogicalType::TIMESTAMP:
-            return std::vector<int64_t>();
-        case LogicalType::BOOL:
-            return std::vector<bool>();
-        case LogicalType::STRING:
-            return std::vector<std::string>();
+        case PhysicalType::INT16:
+            return std::vector<int16_t>{};
+        case PhysicalType::INT32:
+            return std::vector<int32_t>{};
+        case PhysicalType::INT64:
+            return std::vector<int64_t>{};
+        case PhysicalType::BOOL:
+            return std::vector<bool>{};
+        case PhysicalType::STRING:
+            return std::vector<std::string>{};
         default:
-            throw std::invalid_argument("Unknown data type");
+            COLUMNAR_ASSERT(false, "CreateEmptyColumnData: unknown PhysicalType");
     }
 }
 
