@@ -12,6 +12,12 @@ PointerAlignment: Left
 DerivePointerAlignment: false
 
 AllowShortIfStatementsOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
 ReflowComments: false
 
 IncludeBlocks: Preserve
+NamespaceIndentation: None
+PackConstructorInitializers: Never
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 4
