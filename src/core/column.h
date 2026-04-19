@@ -1,8 +1,9 @@
 #pragma once
 
 #include <core/types.h>
+#include <util/assert.h>
 
-#include <string>
+#include <variant>
 #include <vector>
 
 namespace Columnar {
@@ -16,15 +17,17 @@ public:
     const Types::AnyColumnData& GetData() const;
 
     template <typename T>
-    const std::vector<T>& GetTypedData() const;
-
-    std::string GetValueAsString(size_t row) const;
+    const std::vector<T>& GetTypedData() const {
+        COLUMNAR_ASSERT(std::holds_alternative<std::vector<T>>(data_),
+                        "Column::GetTypedData: type mismatch");
+        return std::get<std::vector<T>>(data_);
+    }
 
 private:
     void Validate() const;
 
 private:
-    Types::PhysicalType type_;  // Maybe set default to str
+    Types::PhysicalType type_;
     Types::AnyColumnData data_;
 };
 

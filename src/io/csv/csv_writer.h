@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/batch.h>
+#include <core/row_group.h>
 
 #include <fstream>
 #include <string>
@@ -11,7 +11,7 @@ class CsvWriter {
 public:
     explicit CsvWriter(const std::string& filename);
 
-    void WriteBatch(const RowGroup& batch);
+    void WriteRowGroup(const RowGroup& rg);
     void Flush();
 
     size_t GetRowsWritten() const;

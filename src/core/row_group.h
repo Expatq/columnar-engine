@@ -22,8 +22,12 @@ public:
     size_t GetRowCount() const;
 
     const Schema& GetSchema() const;
+    
     const Column& GetColumn(size_t index) const;
+    Column& GetColumn(size_t index);
+
     const Column* FindColumn(const std::string& name) const;
+    Column* FindColumn(const std::string& name);
 
     const_iterator begin() const { return columns_.begin(); }
 

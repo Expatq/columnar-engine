@@ -2,6 +2,7 @@ add_library(
     format_parser
     STATIC
     schema_parser.cpp
+    serialize_to_string.cpp
     value_parser.cpp
 )
 

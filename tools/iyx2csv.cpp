@@ -1,6 +1,6 @@
-#include <io/csv_writer.h>
-#include <io/format_reader.h>
-#include <parser/schema_parser.h>
+#include <io/csv/csv_writer.h>
+#include <io/format/format_reader.h>
+#include <parser/format/schema_parser.h>
 
 #include <iostream>
 
@@ -24,11 +24,12 @@ int main(int argc, char* argv[]) {
 
         Columnar::IO::CsvWriter writer(argv[2]);
 
-        for (size_t i = 0; i < reader.GetRowGroupCount(); ++i) {
-            Columnar::RowGroup rg = reader.ReadRowGroup(i);
-            writer.WriteBatch(rg.GetBatch());
-            std::cerr << "RowGroup " << i << ": " << rg.GetBatch().GetRowCount()
+        size_t i = 0;
+        while (auto rg = reader.ReadBatch()) {
+            writer.WriteRowGroup(*rg);
+            std::cerr << "Row group " << i << ": " << rg->GetRowCount()
                       << " rows\n";
+            ++i;
         }
 
         writer.Flush();

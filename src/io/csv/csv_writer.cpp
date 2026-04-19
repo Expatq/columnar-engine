@@ -1,8 +1,7 @@
 #include "csv_writer.h"
 
 #include <parser/csv/csv_parser.h>
-
-#include <core/batch.h>
+#include <parser/format/serialize_to_string.h>
 
 #include <stdexcept>
 #include <vector>
@@ -17,15 +16,16 @@ CsvWriter::CsvWriter(const std::string& filename)
     }
 }
 
-void CsvWriter::WriteBatch(const RowGroup& batch) {
-    Schema schema = batch.GetSchema();
+void CsvWriter::WriteRowGroup(const RowGroup& rg) {
+    Schema schema = rg.GetSchema();
 
-    for (size_t row = 0; row < batch.GetRowCount(); ++row) {
+    for (size_t row = 0; row < rg.GetRowCount(); ++row) {
         std::vector<std::string> fields;
-        fields.reserve(batch.GetColumnCount());
+        fields.reserve(rg.GetColumnCount());
 
-        for (size_t col = 0; col < batch.GetColumnCount(); ++col) {
-            fields.push_back(batch.GetColumn(col).GetValueAsString(row));
+        for (size_t col = 0; col < rg.GetColumnCount(); ++col) {
+            fields.push_back(Parser::FormatColumn(
+                rg.GetColumn(col), row, schema.GetColumn(col).logical));
         }
 
         file_ << Parser::MergeFieldsInLine(fields) << '\n';

@@ -1,5 +1,7 @@
 #include "value_parser.h"
 
+#include <parser/format/serialize_to_string.h>
+
 #include <core/types.h>
 
 #include <util/str.h>
@@ -140,37 +142,6 @@ int64_t ParseTimestamp(const std::string& str) {
     }
 
     return static_cast<int64_t>(time);
-}
-
-// Formatters:
-
-std::string FormatDate(int32_t daysSinceEpoch) {
-    constexpr int64_t kSecondsPerDay = 86400;
-    std::time_t time =
-        static_cast<std::time_t>(daysSinceEpoch) * kSecondsPerDay;
-    std::tm* tm = std::gmtime(&time);
-
-    if (!tm) {
-        throw std::runtime_error("Cannot format date");
-    }
-
-    std::ostringstream ss;
-    ss << std::put_time(tm, "%Y-%m-%d");
-
-    return ss.str();
-}
-
-std::string FormatTimestamp(int64_t secondsSinceEpoch) {
-    std::time_t time = static_cast<std::time_t>(secondsSinceEpoch);
-    std::tm* tm = std::gmtime(&time);
-
-    if (!tm) {
-        throw std::runtime_error("Cannot format timestamp");
-    }
-
-    std::ostringstream ss;
-    ss << std::put_time(tm, "%Y-%m-%d %H:%M:%S");
-    return ss.str();
 }
 
 }  // namespace

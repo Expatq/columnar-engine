@@ -3,8 +3,10 @@
 #include <io/binary/binary_io.h>
 
 #include <core/row_group.h>
+#include <core/row_group_meta.h>
 #include <core/schema.h>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -32,6 +34,7 @@ public:
     size_t GetRowGroupCount() const;
     const RowGroupMeta& GetRowGroupMeta(size_t index) const;
     uint64_t GetTotalRowCount() const;
+    int64_t GetRowGroupRows(size_t index) const;
 
 private:
     BinaryReader reader_;
@@ -42,15 +45,16 @@ private:
     uint64_t footerOffset_ = 0;
 
     Schema schema_;
-    std::vector<RowGroupMeta> rowGroupMetas_;
-    size_t currentRowGroupIndex_ = 0;
+    std::vector<RowGroupMeta> rgMetas_;
+    size_t currentRgIdx_ = 0;
 
     void ValidateMagic();
     void ReadHeader();
     void ReadSchema();
     void ReadFooter();
-    Column ReadColumn(const std::string& name, Types::PhysicalType type,
-                      size_t rowCount);
+    RowGroup ReadRgInternal(const RowGroupMeta& meta,
+                            const std::vector<size_t>& col_indices);
+    Column ReadColumn(Types::PhysicalType physical, size_t rowCount);
 };
 
 }  // namespace Columnar::IO

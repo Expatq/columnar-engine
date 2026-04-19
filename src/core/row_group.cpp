@@ -59,6 +59,11 @@ const Column& RowGroup::GetColumn(size_t index) const {
     return columns_[index];
 }
 
+Column& RowGroup::GetColumn(size_t index) {
+    COLUMNAR_ASSERT(index < columns_.size(), "column index out of range");
+    return columns_[index];
+}
+
 const Column* RowGroup::FindColumn(const std::string& name) const {
     auto idx = schema_.FindColumn(name);
     COLUMNAR_ASSERT(idx.has_value(),
@@ -66,4 +71,12 @@ const Column* RowGroup::FindColumn(const std::string& name) const {
     return idx ? &columns_[*idx] : nullptr;
 }
 
+Column* RowGroup::FindColumn(const std::string& name) {
+    auto idx = schema_.FindColumn(name);
+    COLUMNAR_ASSERT(idx.has_value(),
+                    "Batch::FindColumn: unknown column name: " + name);
+    return idx ? &columns_[*idx] : nullptr;
+}
+
 }  // namespace Columnar
+ 

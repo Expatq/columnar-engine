@@ -1,6 +1,6 @@
-#include <io/csv_reader.h>
-#include <io/format_writer.h>
-#include <parser/schema_parser.h>
+#include <io/csv/csv_reader.h>
+#include <io/format/format_writer.h>
+#include <parser/format/schema_parser.h>
 
 #include <exception>
 #include <iostream>
@@ -20,12 +20,11 @@ int main(int argc, char* argv[]) {
 
         writer.Begin(schema);
 
-        size_t batchNum = 0;
-        while (auto batch = reader.ReadRowGroup()) {
-            Columnar::RowGroup rg(std::move(*batch));
-            writer.WriteRowGroup(rg);
-            std::cerr << "Batch " << ++batchNum << ": "
-                      << rg.GetBatch().GetRowCount() << " rows\n";
+        size_t rowGroupNum = 0;
+        while (auto rg = reader.ReadRowGroup()) {
+            writer.WriteRowGroup(*rg);
+            std::cerr << "Row group " << ++rowGroupNum << ": " << rg->GetRowCount()
+                      << " rows\n";
         }
 
         writer.End();

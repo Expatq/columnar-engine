@@ -4,6 +4,7 @@
 
 #include <core/column.h>
 #include <core/row_group.h>
+#include <core/row_group_meta.h>
 #include <core/schema.h>
 
 #include <string>
@@ -19,7 +20,7 @@ public:
     FormatWriter& operator=(const FormatWriter&) = delete;
 
     void Begin(const Schema& schema);
-    void WriteRowGroup(const RowGroup& rowGroup);
+    void WriteRowGroup(const RowGroup& rg);
     void End();
 
     size_t GetRowGroupCount() const;
@@ -30,7 +31,7 @@ public:
 private:
     BinaryWriter writer_;
     Schema schema_;
-    std::vector<RowGroupMeta> rowGroupMetas_;
+    std::vector<RowGroupMeta> rgMetas_;
 
     size_t totalRowCount_ = 0;
     bool begun_ = false;
@@ -38,7 +39,7 @@ private:
 
     void WriteHeader();
     void WriteSchema();
-    void WriteColumn(const Column& column);
+    void WriteColumn(const Column& col);
     void WriteFooter();
     void FinalizeHeader();
 };

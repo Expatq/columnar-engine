@@ -1,18 +1,19 @@
 #include <gtest/gtest.h>
 
-#include <core/batch.h>
+#include <core/row_group_meta.h>
 #include <core/schema.h>
-#include <io/csv_reader.h>
-#include <io/csv_writer.h>
-#include <io/format_reader.h>
-#include <io/format_writer.h>
+#include <core/types.h>
+#include <io/csv/csv_reader.h>
+#include <io/csv/csv_writer.h>
+#include <io/format/format_reader.h>
+#include <io/format/format_writer.h>
+#include <parser/format/schema_parser.h>
+
+#include <core/row_group.h>
 
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include "core/row_group.h"
-#include "core/types.h"
-#include "parser/schema_parser.h"
 
 namespace Columnar::Test {
 
@@ -119,9 +120,8 @@ TEST_F(FixtureE2E, CsvToIyxToCsvWithNumericSum) {
         IO::FormatWriter formatWriter(kTestIyxFile);
         formatWriter.Begin(inputSchema);
 
-        while (auto batch = csvReader.ReadBatch()) {
-            RowGroup rg(std::move(*batch));
-            formatWriter.WriteRowGroup(rg);
+        while (auto rg = csvReader.ReadRowGroup()) {
+            formatWriter.WriteRowGroup(*rg);
         }
 
         formatWriter.End();
@@ -159,20 +159,17 @@ TEST_F(FixtureE2E, CsvToIyxToCsvWithNumericSum) {
             << "Total row count mismatch between writer and reader";
 
         for (size_t i = 0; i < formatReader.GetRowGroupCount(); ++i) {
-            const RowGroupMeta& meta = formatReader.GetRowGroupMeta(i);
-            EXPECT_GT(meta.rowCount, 0)
+            const IO::RowGroupMeta& meta = formatReader.GetRowGroupMeta(i);
+            EXPECT_GT(meta.rowCount, 0u)
                 << "Row group " << i << " should have rows";
-            EXPECT_GT(meta.size, 0)
-                << "Row group " << i << " should have non-zero size";
+            EXPECT_GT(meta.offset, 0u)
+                << "Row group " << i << " should have non-zero file offset";
         }
 
         IO::CsvWriter csvWriter(kTestOutputDataCsv);
 
-        while (formatReader.HasMore()) {
-            auto batch = formatReader.ReadBatch();
-            if (batch) {
-                csvWriter.WriteBatch(*batch);
-            }
+        while (auto rg = formatReader.ReadBatch()) {
+            csvWriter.WriteRowGroup(*rg);
         }
     }
 
@@ -213,9 +210,8 @@ TEST_F(FixtureE2E, LargeDataMultipleRowGroups) {
         IO::FormatWriter formatWriter(kTestIyxFile);
         formatWriter.Begin(schema);
 
-        while (auto batch = csvReader.ReadBatch()) {
-            RowGroup rg(std::move(*batch));
-            formatWriter.WriteRowGroup(rg);
+        while (auto rg = csvReader.ReadRowGroup()) {
+            formatWriter.WriteRowGroup(*rg);
         }
 
         formatWriter.End();
@@ -243,11 +239,8 @@ TEST_F(FixtureE2E, LargeDataMultipleRowGroups) {
 
         IO::CsvWriter csvWriter(kTestOutputDataCsv);
 
-        while (formatReader.HasMore()) {
-            auto batch = formatReader.ReadBatch();
-            if (batch) {
-                csvWriter.WriteBatch(*batch);
-            }
+        while (auto rg = formatReader.ReadBatch()) {
+            csvWriter.WriteRowGroup(*rg);
         }
     }
 
