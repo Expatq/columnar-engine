@@ -1,121 +1,86 @@
 #include <core/types.h>
+#include <util/assert.h>
 
 namespace Columnar::Types {
 
-size_t GetTypeSize(DataType type) {
-    switch (type) {
-        case DataType::INT16:
-            return sizeof(int16_t);
-        case DataType::INT32:
-            return sizeof(int32_t);
-        case DataType::INT64:
-            return sizeof(int64_t);
-        case DataType::INT128:
-            return sizeof(int64_t);  // TODO: fix sizeof int128
-        case DataType::BOOL:
-            return sizeof(bool);
-        case DataType::DATE:
-            return sizeof(int32_t);
-        case DataType::TIMESTAMP:
-            return sizeof(int64_t);
-        case DataType::STRING:
-            return 0;
+PhysicalType ToPhysical(LogicalType logical) {
+    switch (logical) {
+        case LogicalType::INT16:
+            return PhysicalType::INT16;
+        case LogicalType::INT32:
+        case LogicalType::DATE:
+            return PhysicalType::INT32;
+        case LogicalType::INT64:
+        case LogicalType::INT128:
+        case LogicalType::TIMESTAMP:
+            return PhysicalType::INT64;
+        case LogicalType::BOOL:
+            return PhysicalType::BOOL;
+        case LogicalType::STRING:
+            return PhysicalType::STRING;
         default:
-            throw std::invalid_argument("Unknown data type");
+            COLUMNAR_ASSERT(false, "unknown LogicalType");
     }
 }
 
-std::string GetTypeName(DataType type) {
+std::string GetLogicalTypeName(LogicalType type) {
     switch (type) {
-        case DataType::INT16:
+        case LogicalType::INT16:
             return "int16";
-        case DataType::INT32:
+        case LogicalType::INT32:
             return "int32";
-        case DataType::INT64:
+        case LogicalType::INT64:
             return "int64";
-        case DataType::INT128:
+        case LogicalType::INT128:
             return "int128";
-        case DataType::BOOL:
+        case LogicalType::BOOL:
             return "bool";
-        case DataType::STRING:
+        case LogicalType::STRING:
             return "string";
-        case DataType::DATE:
+        case LogicalType::DATE:
             return "date";
-        case DataType::TIMESTAMP:
+        case LogicalType::TIMESTAMP:
             return "timestamp";
         default:
-            return "unknown";
+            COLUMNAR_ASSERT(false, "unknown LogicalType");
     }
 }
 
-bool IsFixedSize(DataType type) {
-    return type != DataType::STRING;
-}
-
-DataType ParseDataType(const std::string& type_name) {
+LogicalType ParseLogicalType(const std::string& type_name) {
     if (type_name == "int16")
-        return DataType::INT16;
+        return LogicalType::INT16;
     if (type_name == "int32")
-        return DataType::INT32;
+        return LogicalType::INT32;
     if (type_name == "int64")
-        return DataType::INT64;
+        return LogicalType::INT64;
     if (type_name == "int128")
-        return DataType::INT128;
+        return LogicalType::INT128;
     if (type_name == "bool")
-        return DataType::BOOL;
+        return LogicalType::BOOL;
     if (type_name == "string")
-        return DataType::STRING;
+        return LogicalType::STRING;
     if (type_name == "date")
-        return DataType::DATE;
+        return LogicalType::DATE;
     if (type_name == "timestamp")
-        return DataType::TIMESTAMP;
-    throw std::invalid_argument("Unknown type name: " + type_name);
+        return LogicalType::TIMESTAMP;
+    COLUMNAR_ASSERT(false, "unknown type name (" + type_name + ")");
 }
 
-size_t GetVariantIndex(DataType type) {
+AnyColumnData CreateEmptyColumnData(PhysicalType type) {
     switch (type) {
-        case DataType::INT16:
-            return 0;
-        case DataType::INT32:
-        case DataType::DATE:
-            return 1;
-        case DataType::INT64:
-        case DataType::INT128:
-        case DataType::TIMESTAMP:
-            return 2;
-        case DataType::BOOL:
-            return 3;
-        case DataType::STRING:
-            return 4;
+        case PhysicalType::INT16:
+            return std::vector<int16_t>{};
+        case PhysicalType::INT32:
+            return std::vector<int32_t>{};
+        case PhysicalType::INT64:
+            return std::vector<int64_t>{};
+        case PhysicalType::BOOL:
+            return std::vector<bool>{};
+        case PhysicalType::STRING:
+            return std::vector<std::string>{};
         default:
-            throw std::invalid_argument("Unknown data type");
+            COLUMNAR_ASSERT(false, "unknown PhysicalType");
     }
 }
-
-AnyColumnData CreateEmptyColumnData(DataType type) {
-    switch (type) {
-        case DataType::INT16:
-            return std::vector<int16_t>();
-        case DataType::INT32:
-        case DataType::DATE:
-            return std::vector<int32_t>();
-        case DataType::INT64:
-        case DataType::INT128:
-        case DataType::TIMESTAMP:
-            return std::vector<int64_t>();
-        case DataType::BOOL:
-            return std::vector<bool>();
-        case DataType::STRING:
-            return std::vector<std::string>();
-        default:
-            throw std::invalid_argument("Unknown data type");
-    }
-}
-
-// Visitor implementations
-IMPL_CONST_VISITOR_FOR_ALL_TYPES(GetSizeVisitor, size_t, return data.size();)
-IMPL_MUTABLE_VISITOR_FOR_ALL_TYPES(ClearVisitor, void, data.clear();)
-IMPL_MUTABLE_VISITOR_FOR_ALL_TYPES(ReserveVisitor, void,
-                                   data.reserve(capacity);)
 
 }  // namespace Columnar::Types

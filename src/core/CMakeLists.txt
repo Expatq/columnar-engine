@@ -4,8 +4,7 @@ add_library(
     types.cpp
     column.cpp
     schema.cpp
-    batch.cpp
     row_group.cpp
 )
 
-target_include_directories(columnar_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(columnar_core PUBLIC ${CMAKE_SOURCE_DIR}/src)

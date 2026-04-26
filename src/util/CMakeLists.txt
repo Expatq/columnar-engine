@@ -1,11 +1,8 @@
 add_library(
     columnar_util
-    STATIC
+    SHARED
     str.cpp
-    batch_builder.cpp
-    statistics.cpp
+    timer.cpp
 )
 
-target_include_directories(columnar_util PUBLIC ${CMAKE_SOURCE_DIR}/include)
-
-target_link_libraries(columnar_util PUBLIC columnar_core)
+target_include_directories(columnar_util PUBLIC ${CMAKE_SOURCE_DIR}/src)

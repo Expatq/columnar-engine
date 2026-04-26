@@ -54,6 +54,7 @@ build
 #local files
 .clangd
 .cache
+.claude
+junk
 
 columnar-engine-docs
-
