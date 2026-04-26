@@ -56,5 +56,6 @@ build
 .cache
 .claude
 junk
+data
 
 columnar-engine-docs
