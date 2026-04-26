@@ -16,7 +16,8 @@ RowGroup::RowGroup(Schema schema, std::vector<Column> columns)
 RowGroup::RowGroup(RowGroup&& other) noexcept
     : schema_(std::move(other.schema_)),
       columns_(std::move(other.columns_)),
-      rowCount_(std::exchange(other.rowCount_, 0)) {}
+      rowCount_(std::exchange(other.rowCount_, 0)) {
+}
 
 RowGroup& RowGroup::operator=(RowGroup&& other) noexcept {
     schema_ = std::move(other.schema_);
@@ -27,9 +28,9 @@ RowGroup& RowGroup::operator=(RowGroup&& other) noexcept {
 
 void RowGroup::Validate() const {
     COLUMNAR_ASSERT(!columns_.empty(),
-                    "RowGroup: must have at least one column");
+                    "must have at least one column");
     COLUMNAR_ASSERT(schema_.GetColumnCount() == columns_.size(),
-                    "RowGroup: schema and columns count mismatch");
+                    "schema and columns count mismatch");
 
     const size_t expected = columns_[0].GetRowCount();
     for (size_t i = 1; i < columns_.size(); ++i) {
@@ -38,7 +39,7 @@ void RowGroup::Validate() const {
             "row count mismatch in column: " + schema_.GetColumnName(i));
         COLUMNAR_ASSERT(
             columns_[i].GetType() == schema_.GetColumn(i).physical,
-            "RowGroup: type mismatch in column " + schema_.GetColumnName(i));
+            "type mismatch in column " + schema_.GetColumnName(i));
     }
 }
 
@@ -67,16 +68,15 @@ Column& RowGroup::GetColumn(size_t index) {
 const Column* RowGroup::FindColumn(const std::string& name) const {
     auto idx = schema_.FindColumn(name);
     COLUMNAR_ASSERT(idx.has_value(),
-                    "Batch::FindColumn: unknown column name: " + name);
+                    "unknown column name: " + name);
     return idx ? &columns_[*idx] : nullptr;
 }
 
 Column* RowGroup::FindColumn(const std::string& name) {
     auto idx = schema_.FindColumn(name);
     COLUMNAR_ASSERT(idx.has_value(),
-                    "Batch::FindColumn: unknown column name: " + name);
+                    "unknown column name: " + name);
     return idx ? &columns_[*idx] : nullptr;
 }
 
 }  // namespace Columnar
- 

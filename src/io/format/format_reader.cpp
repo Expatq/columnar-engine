@@ -1,64 +1,67 @@
-#include "format_reader.h"
-
-#include <io/binary/binary_io.h>
-
-#include <core/column.h>
-#include <core/row_group.h>
-#include <core/types.h>
+#include <io/format/format_reader.h>
 
 #include <util/assert.h>
 
 #include <cstdint>
+#include <numeric>
 #include <stdexcept>
+#include <vector>
 
 namespace Columnar::IO {
 
 FormatReader::FormatReader(const std::string& filename)
-    : reader_(filename) {}
-
-void FormatReader::Open() {
-    if (opened_) {
-        return;
-    }
+    : reader_(filename) {
     ValidateMagic();
     ReadHeader();
     ReadSchema();
     ReadFooter();
-    opened_ = true;
 }
 
 void FormatReader::ValidateMagic() {
-    size_t fileSize = reader_.GetFileSize();
+    const size_t fileSize = reader_.GetFileSize();
     if (fileSize <= kMagicSize + kHeaderSize) {
-        throw std::runtime_error("File too small to be valid .iyx");
+        throw std::runtime_error("file too small to be valid .iyx");
     }
 
-    reader_.Seek(fileSize - kMagicSize);
     uint8_t magic[kMagicSize];
+    reader_.Seek(fileSize - kMagicSize);
     reader_.Read(magic, kMagicSize);
+
     for (size_t i = 0; i < kMagicSize; ++i) {
         if (magic[i] != kMagicBytes[i]) {
-            throw std::runtime_error("Invalid .iyx magic");
+            throw std::runtime_error("invalid .iyx magic");
         }
     }
+
     reader_.Seek(0);
 }
 
 void FormatReader::ReadHeader() {
+    reader_.Seek(0);
+
+    uint32_t rowGroupCount = 0;
+    uint64_t schemaOffset = 0;
+
     reader_.Read(&columnCount_, sizeof(columnCount_));
-    uint32_t rgCount;
-    reader_.Read(&rgCount, sizeof(rgCount));
+    reader_.Read(&rowGroupCount, sizeof(rowGroupCount));
     reader_.Read(&totalRowCount_, sizeof(totalRowCount_));
-    uint64_t schemaOffset;
     reader_.Read(&schemaOffset, sizeof(schemaOffset));
     reader_.Read(&footerOffset_, sizeof(footerOffset_));
+
+    if (schemaOffset != kHeaderSize) {
+        throw std::runtime_error("unsupported schema offset");
+    }
+    if (columnCount_ == 0) {
+        throw std::runtime_error("file has empty schema");
+    }
+
+    rowGroupMetas_.reserve(rowGroupCount);
     reader_.Seek(kHeaderSize);
-    rgMetas_.reserve(rgCount);
 }
 
 void FormatReader::ReadSchema() {
     for (uint32_t i = 0; i < columnCount_; ++i) {
-        uint8_t type;
+        uint8_t type = 0;
         reader_.Read(&type, sizeof(type));
         std::string name = reader_.ReadString();
         schema_.AddColumn(name, static_cast<Types::LogicalType>(type));
@@ -68,46 +71,48 @@ void FormatReader::ReadSchema() {
 void FormatReader::ReadFooter() {
     reader_.Seek(footerOffset_);
 
-    uint32_t rgCount;
-    reader_.Read(&rgCount, sizeof(rgCount));
+    uint32_t rowGroupCount = 0;
+    reader_.Read(&rowGroupCount, sizeof(rowGroupCount));
 
-    std::vector<uint64_t> offsets(rgCount);
-    for (uint32_t i = 0; i < rgCount; ++i) {
+    std::vector<uint64_t> offsets(rowGroupCount);
+    for (uint32_t i = 0; i < rowGroupCount; ++i) {
         reader_.Read(&offsets[i], sizeof(offsets[i]));
     }
 
-    std::vector<uint32_t> rowCounts(rgCount);
-    for (uint32_t i = 0; i < rgCount; ++i) {
-        reader_.Read(&rowCounts[i], sizeof(rowCounts[i]));
+    std::vector<uint32_t> rows(rowGroupCount);
+    for (uint32_t i = 0; i < rowGroupCount; ++i) {
+        reader_.Read(&rows[i], sizeof(rows[i]));
     }
 
-    for (uint32_t i = 0; i < rgCount; ++i) {
-        rgMetas_.push_back({offsets[i], rowCounts[i]});
+    rowGroupMetas_.clear();
+    rowGroupMetas_.reserve(rowGroupCount);
+    for (uint32_t i = 0; i < rowGroupCount; ++i) {
+        rowGroupMetas_.push_back(RowGroupMeta{offsets[i], rows[i]});
     }
 }
 
-std::optional<RowGroup> FormatReader::ReadBatch() {
-    if (!opened_) {
-        Open();
-    }
-    if (currentRgIdx_ >= rgMetas_.size()) {
+std::optional<RowGroup> FormatReader::ReadRowGroup() {
+    if (curRowGroupIdx_ >= rowGroupMetas_.size()) {
         return std::nullopt;
     }
-    return ReadRgInternal(rgMetas_[currentRgIdx_++], {});
+    return ReadAllColumns(rowGroupMetas_[curRowGroupIdx_++]);
+}
+
+std::optional<RowGroup> FormatReader::ReadRowGroup(
+    const std::vector<std::string>& colNames) {
+    if (curRowGroupIdx_ >= rowGroupMetas_.size()) {
+        return std::nullopt;
+    }
+    if (colNames.empty()) {
+        throw std::invalid_argument("selected column list cannot be empty");
+    }
+
+    return ReadSelectedColumns(rowGroupMetas_[curRowGroupIdx_++],
+                               ResolveColumnNames(colNames));
 }
 
 bool FormatReader::HasMore() const {
-    return currentRgIdx_ < rgMetas_.size();
-}
-
-RowGroup FormatReader::ReadRowGroup(size_t index) {
-    if (!opened_) {
-        throw std::logic_error("Open() not called");
-    }
-    if (index >= rgMetas_.size()) {
-        throw std::out_of_range("row group index out of range");
-    }
-    return ReadRgInternal(rgMetas_[index], {});
+    return curRowGroupIdx_ < rowGroupMetas_.size();
 }
 
 const Schema& FormatReader::GetSchema() const {
@@ -115,137 +120,142 @@ const Schema& FormatReader::GetSchema() const {
 }
 
 size_t FormatReader::GetRowGroupCount() const {
-    return rgMetas_.size();
+    return rowGroupMetas_.size();
+}
+
+const RowGroupMeta& FormatReader::GetRowGroupMeta(size_t index) const {
+    if (index >= rowGroupMetas_.size()) {
+        throw std::out_of_range("row group index out of range");
+    }
+    return rowGroupMetas_[index];
 }
 
 uint64_t FormatReader::GetTotalRowCount() const {
     return totalRowCount_;
 }
 
-const RowGroupMeta& FormatReader::GetRowGroupMeta(size_t index) const {
-    if (index >= rgMetas_.size()) {
-        throw std::out_of_range("Index out of range");
+uint32_t FormatReader::GetRowGroupRows(size_t index) const {
+    if (index >= rowGroupMetas_.size()) {
+        throw std::out_of_range("row group index out of range");
     }
-    return rgMetas_[index];
+    return rowGroupMetas_[index].rowCount;
 }
 
-int64_t FormatReader::GetRowGroupRows(size_t index) const {
-    COLUMNAR_ASSERT(index < rgMetas_.size(), "row group index out of range");
-    return static_cast<int64_t>(rgMetas_[index].rowCount);
+std::vector<size_t> FormatReader::ResolveColumnNames(
+    const std::vector<std::string>& colNames) const {
+    std::vector<size_t> indices;
+    indices.reserve(colNames.size());
+
+    for (const auto& name : colNames) {
+        auto idx = schema_.FindColumn(name);
+        if (!idx) {
+            throw std::invalid_argument("unknown column '" + name + "'");
+        }
+        indices.push_back(*idx);
+    }
+
+    return indices;
 }
 
-RowGroup FormatReader::ReadRgInternal(const RowGroupMeta& meta,
-                                      const std::vector<size_t>& col_indices) {
+RowGroup FormatReader::ReadAllColumns(const RowGroupMeta& meta) {
+    std::vector<size_t> colIndices(schema_.GetColumnCount());
+    std::iota(colIndices.begin(), colIndices.end(), 0);
+    return ReadSelectedColumns(meta, colIndices);
+}
+
+RowGroup FormatReader::ReadSelectedColumns(
+    const RowGroupMeta& meta, const std::vector<size_t>& colIndices) {
+    if (colIndices.empty()) {
+        throw std::invalid_argument("selected column list cannot be empty");
+    }
+
     reader_.Seek(meta.offset);
 
     int64_t rowCount = 0;
     reader_.Read(&rowCount, sizeof(rowCount));
+    if (rowCount < 0) {
+        throw std::runtime_error("negative row count in row group");
+    }
 
-    const size_t nCols = schema_.GetColumnCount();
-
-    std::vector<int64_t> colOffsets(nCols);
-    for (size_t i = 0; i < nCols; ++i) {
+    const size_t columnCount = schema_.GetColumnCount();
+    std::vector<int64_t> colOffsets(columnCount);
+    for (size_t i = 0; i < columnCount; ++i) {
         reader_.Read(&colOffsets[i], sizeof(colOffsets[i]));
     }
 
-    const bool readAll = col_indices.empty();
-    std::vector<bool> needed(nCols, readAll);
-    if (!readAll) {
-        for (size_t ci : col_indices) {
-            COLUMNAR_ASSERT(ci < nCols, "column index out of range");
-            needed[ci] = true;
+    Schema resultSchema;
+    std::vector<Column> resultColumns;
+    resultColumns.reserve(colIndices.size());
+
+    for (size_t columnIndex : colIndices) {
+        if (columnIndex >= columnCount) {
+            throw std::out_of_range("selected column index out of range");
         }
-    }
 
-    std::vector<Column> cols;
-    cols.reserve(readAll ? nCols : col_indices.size());
-
-    for (size_t i = 0; i < nCols; ++i) {
-        if (!needed[i]) {
-            continue;
+        const int64_t relativeOffset = colOffsets[columnIndex];
+        if (relativeOffset < 0) {
+            throw std::runtime_error("negative column offset");
         }
-        reader_.Seek(static_cast<size_t>(static_cast<int64_t>(meta.offset) +
-                                         colOffsets[i]));
-        cols.push_back(ReadColumn(schema_.GetColumn(i).physical,
-                                  static_cast<size_t>(rowCount)));
+
+        const auto& schemaColumn = schema_.GetColumn(columnIndex);
+        resultSchema.AddColumn(schemaColumn);
+
+        reader_.Seek(static_cast<size_t>(
+            static_cast<int64_t>(meta.offset) + relativeOffset));
+        resultColumns.push_back(ReadColumn(schemaColumn.physical,
+                                           static_cast<size_t>(rowCount)));
     }
 
-    if (readAll) {
-        return RowGroup(schema_, std::move(cols));
-    }
-
-    Schema partial;
-    for (size_t i = 0; i < nCols; ++i) {
-        if (needed[i]) {
-            partial.AddColumn(schema_.GetColumn(i));
-        }
-    }
-    return RowGroup(std::move(partial), std::move(cols));
+    return RowGroup(std::move(resultSchema), std::move(resultColumns));
 }
 
 Column FormatReader::ReadColumn(Types::PhysicalType physical, size_t rowCount) {
-    Types::AnyColumnData data;
-
     switch (physical) {
         case Types::PhysicalType::INT16: {
-            std::vector<int16_t> v;
-            v.reserve(rowCount);
-            for (size_t i = 0; i < rowCount; ++i) {
-                int16_t x;
-                reader_.Read(&x, sizeof(x));
-                v.push_back(x);
+            std::vector<int16_t> values(rowCount);
+            if (!values.empty()) {
+                reader_.Read(values.data(), values.size() * sizeof(values[0]));
             }
-            data = std::move(v);
-            break;
+            return Column(std::move(values), physical);
         }
         case Types::PhysicalType::INT32: {
-            std::vector<int32_t> v;
-            v.reserve(rowCount);
-            for (size_t i = 0; i < rowCount; ++i) {
-                int32_t x;
-                reader_.Read(&x, sizeof(x));
-                v.push_back(x);
+            std::vector<int32_t> values(rowCount);
+            if (!values.empty()) {
+                reader_.Read(values.data(), values.size() * sizeof(values[0]));
             }
-            data = std::move(v);
-            break;
+            return Column(std::move(values), physical);
         }
         case Types::PhysicalType::INT64: {
-            std::vector<int64_t> v;
-            v.reserve(rowCount);
-            for (size_t i = 0; i < rowCount; ++i) {
-                int64_t x;
-                reader_.Read(&x, sizeof(x));
-                v.push_back(x);
+            std::vector<int64_t> values(rowCount);
+            if (!values.empty()) {
+                reader_.Read(values.data(), values.size() * sizeof(values[0]));
             }
-            data = std::move(v);
-            break;
+            return Column(std::move(values), physical);
         }
         case Types::PhysicalType::BOOL: {
-            std::vector<bool> v;
-            v.reserve(rowCount);
-            for (size_t i = 0; i < rowCount; ++i) {
-                uint8_t b;
-                reader_.Read(&b, sizeof(b));
-                v.push_back(b != 0);
+            std::vector<uint8_t> bytes(rowCount);
+            if (!bytes.empty()) {
+                reader_.Read(bytes.data(), bytes.size() * sizeof(bytes[0]));
             }
-            data = std::move(v);
-            break;
+
+            std::vector<bool> values;
+            values.reserve(rowCount);
+            for (uint8_t byte : bytes) {
+                values.push_back(byte != 0);
+            }
+            return Column(std::move(values), physical);
         }
         case Types::PhysicalType::STRING: {
-            std::vector<std::string> v;
-            v.reserve(rowCount);
+            std::vector<std::string> values;
+            values.reserve(rowCount);
             for (size_t i = 0; i < rowCount; ++i) {
-                v.push_back(reader_.ReadString());
+                values.push_back(reader_.ReadString());
             }
-            data = std::move(v);
-            break;
+            return Column(std::move(values), physical);
         }
         default:
-            COLUMNAR_ASSERT(false, "ReadColumn: unknown PhysicalType");
-            throw std::logic_error("ReadColumn: unknown PhysicalType");
+            COLUMNAR_ASSERT(false, "unknown PhysicalType");
     }
-
-    return Column(std::move(data), physical);
 }
 
 }  // namespace Columnar::IO

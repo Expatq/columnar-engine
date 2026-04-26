@@ -19,6 +19,9 @@ public:
     FormatWriter(const FormatWriter&) = delete;
     FormatWriter& operator=(const FormatWriter&) = delete;
 
+    FormatWriter(FormatWriter&&) noexcept = default;
+    FormatWriter& operator=(FormatWriter&&) noexcept = default;
+
     void Begin(const Schema& schema);
     void WriteRowGroup(const RowGroup& rg);
     void End();

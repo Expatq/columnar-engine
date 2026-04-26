@@ -21,39 +21,43 @@ public:
     FormatReader(const FormatReader&) = delete;
     FormatReader& operator=(const FormatReader&) = delete;
 
-    FormatReader(FormatReader&&) = default;
-    FormatReader& operator=(FormatReader&&) = default;
+    FormatReader(FormatReader&&) noexcept = default;
+    FormatReader& operator=(FormatReader&&) noexcept = default;
 
-    void Open();
+    std::optional<RowGroup> ReadRowGroup();
+    std::optional<RowGroup> ReadRowGroup(const std::vector<std::string>& colNames);
 
-    std::optional<RowGroup> ReadBatch();
     bool HasMore() const;
-    RowGroup ReadRowGroup(size_t index);
 
     const Schema& GetSchema() const;
     size_t GetRowGroupCount() const;
     const RowGroupMeta& GetRowGroupMeta(size_t index) const;
     uint64_t GetTotalRowCount() const;
-    int64_t GetRowGroupRows(size_t index) const;
+    uint32_t GetRowGroupRows(size_t index) const;
 
 private:
     BinaryReader reader_;
-    bool opened_ = false;
 
     uint32_t columnCount_ = 0;
     uint64_t totalRowCount_ = 0;
     uint64_t footerOffset_ = 0;
 
     Schema schema_;
-    std::vector<RowGroupMeta> rgMetas_;
-    size_t currentRgIdx_ = 0;
+    std::vector<RowGroupMeta> rowGroupMetas_;
+    size_t curRowGroupIdx_ = 0;
 
     void ValidateMagic();
     void ReadHeader();
     void ReadSchema();
     void ReadFooter();
-    RowGroup ReadRgInternal(const RowGroupMeta& meta,
-                            const std::vector<size_t>& col_indices);
+
+    std::vector<size_t> ResolveColumnNames(
+        const std::vector<std::string>& colNames) const;
+
+    RowGroup ReadAllColumns(const RowGroupMeta& meta);
+    RowGroup ReadSelectedColumns(const RowGroupMeta& meta,
+                                 const std::vector<size_t>& colIndices);
+
     Column ReadColumn(Types::PhysicalType physical, size_t rowCount);
 };
 

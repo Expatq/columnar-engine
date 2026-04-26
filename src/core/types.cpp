@@ -19,7 +19,7 @@ PhysicalType ToPhysical(LogicalType logical) {
         case LogicalType::STRING:
             return PhysicalType::STRING;
         default:
-            COLUMNAR_ASSERT(false, "ToPhysical: unknown LogicalType");
+            COLUMNAR_ASSERT(false, "unknown LogicalType");
     }
 }
 
@@ -42,7 +42,7 @@ std::string GetLogicalTypeName(LogicalType type) {
         case LogicalType::TIMESTAMP:
             return "timestamp";
         default:
-            COLUMNAR_ASSERT(false, "GetLogicalTypeName: unknown LogicalType");
+            COLUMNAR_ASSERT(false, "unknown LogicalType");
     }
 }
 
@@ -63,7 +63,7 @@ LogicalType ParseLogicalType(const std::string& type_name) {
         return LogicalType::DATE;
     if (type_name == "timestamp")
         return LogicalType::TIMESTAMP;
-    COLUMNAR_ASSERT(false, "ParseLogicalType: unknown type name (" + type_name + ")");
+    COLUMNAR_ASSERT(false, "unknown type name (" + type_name + ")");
 }
 
 AnyColumnData CreateEmptyColumnData(PhysicalType type) {
@@ -79,7 +79,7 @@ AnyColumnData CreateEmptyColumnData(PhysicalType type) {
         case PhysicalType::STRING:
             return std::vector<std::string>{};
         default:
-            COLUMNAR_ASSERT(false, "CreateEmptyColumnData: unknown PhysicalType");
+            COLUMNAR_ASSERT(false, "unknown PhysicalType");
     }
 }
 

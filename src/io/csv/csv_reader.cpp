@@ -22,7 +22,7 @@ CsvReader::CsvReader(const std::string& filename, const Schema& schema)
         throw std::runtime_error("Cannot open CSV file: " + filename);
     }
     COLUMNAR_ASSERT(schema_.GetColumnCount() > 0,
-                    "CsvReader: schema cannot be empty");
+                    "schema cannot be empty");
 
     buffers_.reserve(schema_.GetColumnCount());
     for (size_t i = 0; i < schema_.GetColumnCount(); ++i) {

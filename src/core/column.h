@@ -19,7 +19,7 @@ public:
     template <typename T>
     const std::vector<T>& GetTypedData() const {
         COLUMNAR_ASSERT(std::holds_alternative<std::vector<T>>(data_),
-                        "Column::GetTypedData: type mismatch");
+                        "type mismatch");
         return std::get<std::vector<T>>(data_);
     }
 

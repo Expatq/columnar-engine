@@ -2,8 +2,6 @@
 
 #include <util/assert.h>
 
-#include <stdexcept>
-
 namespace Columnar::Parser {
 
 std::vector<std::string> ParseCsvLine(const std::string& line,
@@ -48,7 +46,7 @@ std::vector<std::string> ParseCsvLine(const std::string& line,
     }
     fields.push_back(currentField);
 
-    COLUMNAR_ASSERT(!inQuotes, "ParseCsvLine: Unclosed quote in CSV line");
+    COLUMNAR_ASSERT(!inQuotes, "unclosed quote in CSV line");
 
     return fields;
 }

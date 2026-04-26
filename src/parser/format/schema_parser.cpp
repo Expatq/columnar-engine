@@ -20,17 +20,14 @@ ColumnSchema ParseSchemaLine(const std::string& line) {
     auto fields = ParseCsvLine(line);
 
     COLUMNAR_ASSERT(fields.size() == 2,
-                    "ParseSchemaLine: Invalid schema line, expected "
-                    "'column_name,type_name', got: " +
+                    "invalid schema line, expected 'column_name,type_name', got: " +
                         line);
 
     std::string columnName = str::strip(fields[0]);
     std::string typeName = str::strip(fields[1]);
 
-    COLUMNAR_ASSERT(!columnName.empty(),
-                    "ParseSchemaLine: schema contains empty column name");
-    COLUMNAR_ASSERT(!typeName.empty(),
-                    "ParseSchemaLine: schema contains empty type name");
+    COLUMNAR_ASSERT(!columnName.empty(), "schema contains empty column name");
+    COLUMNAR_ASSERT(!typeName.empty(), "schema contains empty type name");
 
     Types::LogicalType type = Types::ParseLogicalType(typeName);
 
@@ -42,7 +39,7 @@ ColumnSchema ParseSchemaLine(const std::string& line) {
 Schema LoadSchemaFromCsv(const std::string& filename) {
     std::ifstream input(filename);
     COLUMNAR_ASSERT(input.is_open(),
-                    "LoadSchemaFromCsv: Cannot open schema file: " + filename);
+                    "cannot open schema file: " + filename);
 
     Schema schema;
     std::string line;
@@ -55,14 +52,14 @@ Schema LoadSchemaFromCsv(const std::string& filename) {
 
         ColumnSchema column = ParseSchemaLine(line);
         COLUMNAR_ASSERT(!schema.FindColumn(column.name),
-                        "LoadSchemaFromCsv: duplicate column name in schema '" +
+                        "duplicate column name in schema '" +
                             column.name + "'");
 
         schema.AddColumn(column);
     }
     COLUMNAR_ASSERT(
         !schema.IsEmpty(),
-        "LoadSchemaFromCsv: Schema file is empty '" + filename + "'");
+        "schema file is empty '" + filename + "'");
 
     input.close();
     return schema;

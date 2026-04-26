@@ -13,7 +13,7 @@ ColumnSchema::ColumnSchema(std::string name, Types::LogicalType logical)
     : name(std::move(name)),
       logical(logical),
       physical(Types::ToPhysical(logical)) {
-    COLUMNAR_ASSERT(!this->name.empty(), "ColumnSchema: name cannot be empty");
+    COLUMNAR_ASSERT(!this->name.empty(), "name cannot be empty");
 }
 
 Schema::Schema(std::vector<ColumnSchema> columns) {
@@ -25,7 +25,7 @@ Schema::Schema(std::vector<ColumnSchema> columns) {
 
 void Schema::AddColumn(ColumnSchema column) {
     COLUMNAR_ASSERT(!FindColumn(column.name).has_value(),
-                    "Schema: duplicate column name '" + column.name + "'");
+                    "duplicate column name '" + column.name + "'");
     columns_.push_back(std::move(column));
 }
 
@@ -39,15 +39,15 @@ size_t Schema::GetColumnCount() const {
 
 const ColumnSchema& Schema::GetColumn(size_t index) const {
     COLUMNAR_ASSERT(index < columns_.size(),
-                    "Schema::GetColumn: index " + std::to_string(index) +
-                        " >= " + std::to_string(columns_.size()));
+                    "index " + std::to_string(index) + " >= " +
+                        std::to_string(columns_.size()));
     return columns_[index];
 }
 
 std::string Schema::GetColumnName(size_t index) const {
     COLUMNAR_ASSERT(index < columns_.size(),
-                    "Schema::GetColumn: index " + std::to_string(index) +
-                        " >= " + std::to_string(columns_.size()));
+                    "index " + std::to_string(index) + " >= " +
+                        std::to_string(columns_.size()));
     return columns_[index].name;
 }
 

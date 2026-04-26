@@ -44,7 +44,7 @@ std::string FormatTimestamp(int64_t secondsSinceEpoch) {
 
 std::string FormatPhysicalCell(const Column& col, size_t row) {
     COLUMNAR_ASSERT(row < col.GetRowCount(),
-                    "FormatPhysicalCell: row out of range");
+                    "row out of range");
     return std::visit(
         Types::overloaded{
             [row](const std::vector<int16_t>& v) {
