@@ -137,7 +137,6 @@ TEST_F(FixtureE2E, CsvToIyxToCsvWithNumericSum) {
 
     {
         IO::FormatReader formatReader(kTestIyxFile);
-        formatReader.Open();
 
         const Schema& iyxSchema = formatReader.GetSchema();
         EXPECT_EQ(iyxSchema.GetColumnCount(), inputSchema.GetColumnCount())
@@ -168,7 +167,7 @@ TEST_F(FixtureE2E, CsvToIyxToCsvWithNumericSum) {
 
         IO::CsvWriter csvWriter(kTestOutputDataCsv);
 
-        while (auto rg = formatReader.ReadBatch()) {
+        while (auto rg = formatReader.ReadRowGroup()) {
             csvWriter.WriteRowGroup(*rg);
         }
     }
@@ -225,7 +224,6 @@ TEST_F(FixtureE2E, LargeDataMultipleRowGroups) {
 
     {
         IO::FormatReader formatReader(kTestIyxFile);
-        formatReader.Open();
 
         EXPECT_EQ(formatReader.GetRowGroupCount(), writtenRowGroups);
         EXPECT_EQ(formatReader.GetTotalRowCount(), numRows);
@@ -239,7 +237,7 @@ TEST_F(FixtureE2E, LargeDataMultipleRowGroups) {
 
         IO::CsvWriter csvWriter(kTestOutputDataCsv);
 
-        while (auto rg = formatReader.ReadBatch()) {
+        while (auto rg = formatReader.ReadRowGroup()) {
             csvWriter.WriteRowGroup(*rg);
         }
     }
@@ -248,6 +246,88 @@ TEST_F(FixtureE2E, LargeDataMultipleRowGroups) {
 
     EXPECT_EQ(inputProduct, outputProduct)
         << "Large data: product should be preserved";
+}
+
+TEST_F(FixtureE2E, SelectiveColumnReadByName) {
+    std::string originalCsv =
+        "1,100,Alice\n"
+        "2,200,Bob\n"
+        "3,300,Charlie\n";
+
+    std::string originalSchema =
+        "id,int64\n"
+        "score,int64\n"
+        "name,string\n";
+
+    WriteFile(kTestInputDataCsv, originalCsv);
+    WriteFile(kTestInputSchemaCsv, originalSchema);
+
+    Schema schema = Parser::LoadSchemaFromCsv(kTestInputSchemaCsv);
+
+    {
+        IO::CsvReader csvReader(kTestInputDataCsv, schema);
+        IO::FormatWriter formatWriter(kTestIyxFile);
+        formatWriter.Begin(schema);
+
+        while (auto rg = csvReader.ReadRowGroup()) {
+            formatWriter.WriteRowGroup(*rg);
+        }
+
+        formatWriter.End();
+    }
+
+    IO::FormatReader reader(kTestIyxFile);
+    auto rg = reader.ReadRowGroup(std::vector<std::string>{"name", "id"});
+    ASSERT_TRUE(rg.has_value());
+
+    EXPECT_EQ(rg->GetColumnCount(), 2u);
+    EXPECT_EQ(rg->GetRowCount(), 3u);
+    EXPECT_EQ(rg->GetSchema().GetColumn(0).name, "name");
+    EXPECT_EQ(rg->GetSchema().GetColumn(1).name, "id");
+
+    const auto& names = rg->GetColumn(0).GetTypedData<std::string>();
+    const auto& ids = rg->GetColumn(1).GetTypedData<int64_t>();
+
+    ASSERT_EQ(names.size(), 3u);
+    ASSERT_EQ(ids.size(), 3u);
+
+    EXPECT_EQ(names[0], "Alice");
+    EXPECT_EQ(names[1], "Bob");
+    EXPECT_EQ(names[2], "Charlie");
+
+    EXPECT_EQ(ids[0], 1);
+    EXPECT_EQ(ids[1], 2);
+    EXPECT_EQ(ids[2], 3);
+
+    EXPECT_FALSE(reader.ReadRowGroup().has_value());
+}
+
+TEST_F(FixtureE2E, SelectiveColumnReadRejectsEmptyColumnList) {
+    std::string originalCsv = "1,100\n";
+    std::string originalSchema =
+        "id,int64\n"
+        "score,int64\n";
+
+    WriteFile(kTestInputDataCsv, originalCsv);
+    WriteFile(kTestInputSchemaCsv, originalSchema);
+
+    Schema schema = Parser::LoadSchemaFromCsv(kTestInputSchemaCsv);
+
+    {
+        IO::CsvReader csvReader(kTestInputDataCsv, schema);
+        IO::FormatWriter formatWriter(kTestIyxFile);
+        formatWriter.Begin(schema);
+
+        while (auto rg = csvReader.ReadRowGroup()) {
+            formatWriter.WriteRowGroup(*rg);
+        }
+
+        formatWriter.End();
+    }
+
+    IO::FormatReader reader(kTestIyxFile);
+    EXPECT_THROW(reader.ReadRowGroup(std::vector<std::string>{}),
+                 std::invalid_argument);
 }
 
 }  // namespace Columnar::Test

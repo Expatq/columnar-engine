@@ -1,0 +1,8 @@
+add_executable(roundtrip_bench roundtrip_bench.cpp)
+
+target_link_libraries(roundtrip_bench
+    PRIVATE
+    columnar_io
+    columnar_parser
+    columnar_util
+)
