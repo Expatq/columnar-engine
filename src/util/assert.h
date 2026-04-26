@@ -36,8 +36,8 @@ namespace Columnar {
         if (!(cond)) [[unlikely]] {                      \
             ::Columnar::AssertFail(#cond,                \
                                    (msg),                \
-                                   __builtin_FILE(),     \
-                                   __builtin_LINE(),     \
+                                   __FILE__,             \
+                                   __LINE__,             \
                                    __PRETTY_FUNCTION__); \
         }                                                \
     } while (0)
