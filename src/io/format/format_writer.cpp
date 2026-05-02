@@ -138,9 +138,9 @@ void FormatWriter::WriteColumn(const Column& col) {
                            writer_.Write(&x, sizeof(x));
                        }
                    },
-                   [this](const std::vector<bool>& v) {
-                       for (bool b : v) {
-                           uint8_t byte = b ? 1 : 0;
+                   [this](const std::vector<uint8_t>& v) {
+                       for (uint8_t b : v) {
+                           uint8_t byte = b != 0 ? 1 : 0;
                            writer_.Write(&byte, sizeof(byte));
                        }
                    },

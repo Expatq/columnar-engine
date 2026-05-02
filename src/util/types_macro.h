@@ -12,7 +12,7 @@ namespace NColumnar::NTypes {
     F(int16_t)                    \
     F(int32_t)                    \
     F(int64_t)                    \
-    F(bool)                       \
+    F(uint8_t)                    \
     F(std::string)
 
 // Declaration macroses
@@ -27,14 +27,14 @@ namespace NColumnar::NTypes {
     DECLARE_VISITOR_OP_CONST(int16_t, RETURN_TYPE)       \
     DECLARE_VISITOR_OP_CONST(int32_t, RETURN_TYPE)       \
     DECLARE_VISITOR_OP_CONST(int64_t, RETURN_TYPE)       \
-    DECLARE_VISITOR_OP_CONST(bool, RETURN_TYPE)          \
+    DECLARE_VISITOR_OP_CONST(uint8_t, RETURN_TYPE)       \
     DECLARE_VISITOR_OP_CONST(std::string, RETURN_TYPE)
 
 #define DECLARE_MUTUABLE_VISITOR_FOR_ALL_TYPES(RETURN_TYPE) \
     DECLARE_VISITOR_OP_MUTUABLE(int16_t, RETURN_TYPE)       \
     DECLARE_VISITOR_OP_MUTUABLE(int32_t, RETURN_TYPE)       \
     DECLARE_VISITOR_OP_MUTUABLE(int64_t, RETURN_TYPE)       \
-    DECLARE_VISITOR_OP_MUTUABLE(bool, RETURN_TYPE)          \
+    DECLARE_VISITOR_OP_MUTUABLE(uint8_t, RETURN_TYPE)       \
     DECLARE_VISITOR_OP_MUTUABLE(std::string, RETURN_TYPE)
 
 // Impl macroses
@@ -54,14 +54,14 @@ namespace NColumnar::NTypes {
     IMPL_VISITOR_OP_CONST(VISITOR_NAME, int16_t, RETURN_TYPE, BODY)       \
     IMPL_VISITOR_OP_CONST(VISITOR_NAME, int32_t, RETURN_TYPE, BODY)       \
     IMPL_VISITOR_OP_CONST(VISITOR_NAME, int64_t, RETURN_TYPE, BODY)       \
-    IMPL_VISITOR_OP_CONST(VISITOR_NAME, bool, RETURN_TYPE, BODY)          \
+    IMPL_VISITOR_OP_CONST(VISITOR_NAME, uint8_t, RETURN_TYPE, BODY)       \
     IMPL_VISITOR_OP_CONST(VISITOR_NAME, std::string, RETURN_TYPE, BODY)
 
 #define IMPL_MUTABLE_VISITOR_FOR_ALL_TYPES(VISITOR_NAME, RETURN_TYPE, BODY) \
     IMPL_VISITOR_OP_MUTABLE(VISITOR_NAME, int16_t, RETURN_TYPE, BODY)       \
     IMPL_VISITOR_OP_MUTABLE(VISITOR_NAME, int32_t, RETURN_TYPE, BODY)       \
     IMPL_VISITOR_OP_MUTABLE(VISITOR_NAME, int64_t, RETURN_TYPE, BODY)       \
-    IMPL_VISITOR_OP_MUTABLE(VISITOR_NAME, bool, RETURN_TYPE, BODY)          \
+    IMPL_VISITOR_OP_MUTABLE(VISITOR_NAME, uint8_t, RETURN_TYPE, BODY)       \
     IMPL_VISITOR_OP_MUTABLE(VISITOR_NAME, std::string, RETURN_TYPE, BODY)
 
 }  // namespace NColumnar::NTypes

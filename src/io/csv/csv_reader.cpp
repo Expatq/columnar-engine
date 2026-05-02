@@ -112,7 +112,9 @@ void CsvReader::AppendToBuffer(size_t colIdx, const std::string& value) {
             [&](std::vector<int64_t>& v) {
                 v.push_back(std::get<int64_t>(parsed));
             },
-            [&](std::vector<bool>& v) { v.push_back(std::get<bool>(parsed)); },
+            [&](std::vector<uint8_t>& v) {
+                v.push_back(std::get<uint8_t>(parsed));
+            },
             [&](std::vector<std::string>& v) {
                 v.push_back(std::get<std::string>(parsed));
             },

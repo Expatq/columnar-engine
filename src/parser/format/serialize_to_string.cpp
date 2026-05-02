@@ -56,8 +56,8 @@ std::string FormatPhysicalCell(const Column& col, size_t row) {
             [row](const std::vector<int64_t>& v) {
                 return std::to_string(v[row]);
             },
-            [row](const std::vector<bool>& v) {
-                return v[row] ? std::string{"true"} : std::string{"false"};
+            [row](const std::vector<uint8_t>& v) {
+                return v[row] != 0 ? std::string{"true"} : std::string{"false"};
             },
             [row](const std::vector<std::string>& v) { return v[row]; },
         },
