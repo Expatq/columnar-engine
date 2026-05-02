@@ -1,18 +1,20 @@
 add_library(
-    columnar_exec_result_format
+    columnar_exec_expression
     STATIC
-    row_group_builder.cpp
+    comparison.cpp
+    column_ref.cpp
 )
 
 target_include_directories(
-    columnar_exec_result_format
+    columnar_exec_expression
     PUBLIC
     ${CMAKE_SOURCE_DIR}/src
 )
 
 target_link_libraries(
-    columnar_exec_result_format
+    columnar_exec_expression
     PUBLIC
     columnar_core
     columnar_exec_core
+    columnar_exec_interface
 )

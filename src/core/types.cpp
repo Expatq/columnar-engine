@@ -75,7 +75,7 @@ AnyColumnData CreateEmptyColumnData(PhysicalType type) {
         case PhysicalType::INT64:
             return std::vector<int64_t>{};
         case PhysicalType::BOOL:
-            return std::vector<bool>{};
+            return std::vector<uint8_t>{};
         case PhysicalType::STRING:
             return std::vector<std::string>{};
         default:

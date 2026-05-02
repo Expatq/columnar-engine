@@ -37,10 +37,10 @@ inline size_t GetPhysVariantIndex(PhysicalType physical_type) {
 }
 
 using AnyPhysicalType =
-    std::variant<int16_t, int32_t, int64_t, bool, std::string>;
+    std::variant<int16_t, int32_t, int64_t, uint8_t, std::string>;
 
 using AnyColumnData = std::variant<std::vector<int16_t>, std::vector<int32_t>,
-                                   std::vector<int64_t>, std::vector<bool>,
+                                   std::vector<int64_t>, std::vector<uint8_t>,
                                    std::vector<std::string>>;
 
 template <typename... Ts>

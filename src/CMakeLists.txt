@@ -2,6 +2,7 @@ add_subdirectory(core)
 add_subdirectory(parser)
 add_subdirectory(io)
 add_subdirectory(util)
+add_subdirectory(exec)
 
 add_library(columnar INTERFACE)
 
@@ -12,4 +13,5 @@ target_link_libraries(
     columnar_parser
     columnar_io
     columnar_util
+    columnar_exec
 )

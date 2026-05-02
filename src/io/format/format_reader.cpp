@@ -233,15 +233,9 @@ Column FormatReader::ReadColumn(Types::PhysicalType physical, size_t rowCount) {
             return Column(std::move(values), physical);
         }
         case Types::PhysicalType::BOOL: {
-            std::vector<uint8_t> bytes(rowCount);
-            if (!bytes.empty()) {
-                reader_.Read(bytes.data(), bytes.size() * sizeof(bytes[0]));
-            }
-
-            std::vector<bool> values;
-            values.reserve(rowCount);
-            for (uint8_t byte : bytes) {
-                values.push_back(byte != 0);
+            std::vector<uint8_t> values(rowCount);
+            if (!values.empty()) {
+                reader_.Read(values.data(), values.size() * sizeof(values[0]));
             }
             return Column(std::move(values), physical);
         }

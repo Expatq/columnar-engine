@@ -1,9 +1,15 @@
 #include "row_group_builder.h"
 
+#include <core/types.h>
+
 namespace Columnar::Exec {
 
 RowGroupBuilder::RowGroupBuilder(Schema schema)
     : schema_(std::move(schema)) {
+    columns_.reserve(schema_.GetColumnCount());
+    for (const auto& col : schema_) {
+        columns_.push_back(Types::CreateEmptyColumnData(col.physical));
+    }
 }
 
 RowGroup RowGroupBuilder::Finish() {

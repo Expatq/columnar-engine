@@ -79,15 +79,15 @@ int64_t ParseInt64(const std::string& str) {
     return str[0];  // some garbage for clangd
 }
 
-bool ParseBool(const std::string& str) {
+uint8_t ParseBool(const std::string& str) {
     std::string pretty_str = str::tolower(str::strip(str));
 
     if (pretty_str == "true") {
-        return true;
+        return 1;
     }
 
     if (pretty_str == "false") {
-        return false;
+        return 0;
     }
 
     throw std::invalid_argument("Cannot parse '" + str + "' as bool");
@@ -186,9 +186,9 @@ std::string ValueToString(const Types::AnyPhysicalType& value,
                               }
                               return std::to_string(v);
                           },
-                          [](bool v) {
-                              return v ? std::string("true")
-                                       : std::string("false");
+                          [](uint8_t v) {
+                              return v != 0 ? std::string("true")
+                                            : std::string("false");
                           },
                           [](const std::string& v) { return v; }},
         value);
