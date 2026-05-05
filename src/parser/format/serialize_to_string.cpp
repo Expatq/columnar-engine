@@ -4,6 +4,7 @@
 #include <core/types.h>
 
 #include <util/assert.h>
+#include <util/int128.h>
 
 #include <cstdint>
 #include <ctime>
@@ -60,6 +61,7 @@ std::string FormatPhysicalCell(const Column& col, size_t row) {
                 return v[row] != 0 ? std::string{"true"} : std::string{"false"};
             },
             [row](const std::vector<std::string>& v) { return v[row]; },
+            [row](const std::vector<Columnar::Int128>& v) { return Columnar::Int128ToString(v[row]); },
         },
         col.GetData());
 }

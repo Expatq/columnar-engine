@@ -48,6 +48,8 @@ Types::AnyPhysicalType ColumnRefExpression::EvaluateScalar(const ExecBatch& inpu
             return col->GetTypedData<int32_t>()[row];
         case Types::PhysicalType::INT64:
             return col->GetTypedData<int64_t>()[row];
+        case Types::PhysicalType::INT128:
+            return col->GetTypedData<Int128>()[row];
         case Types::PhysicalType::BOOL:
             return col->GetTypedData<uint8_t>()[row];
         case Types::PhysicalType::STRING:

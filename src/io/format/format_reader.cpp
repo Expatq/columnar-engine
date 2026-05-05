@@ -6,6 +6,8 @@
 #include <numeric>
 #include <stdexcept>
 #include <vector>
+#include "core/types.h"
+#include "util/int128.h"
 
 namespace Columnar::IO {
 
@@ -227,6 +229,13 @@ Column FormatReader::ReadColumn(Types::PhysicalType physical, size_t rowCount) {
         }
         case Types::PhysicalType::INT64: {
             std::vector<int64_t> values(rowCount);
+            if (!values.empty()) {
+                reader_.Read(values.data(), values.size() * sizeof(values[0]));
+            }
+            return Column(std::move(values), physical);
+        }
+        case Types::PhysicalType::INT128: {
+            std::vector<Int128> values(rowCount);
             if (!values.empty()) {
                 reader_.Read(values.data(), values.size() * sizeof(values[0]));
             }

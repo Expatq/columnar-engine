@@ -1,47 +1,23 @@
-#include "global_aggregation.h"
+#include "aggregation.h"
 
 #include <exec/result_format/row_group_builder.h>
 
+#include <exec/aggregate/lib/aggregate_result.h>
+#include <exec/aggregate/lib/consumers.h>
+#include <exec/aggregate/lib/spec.h>
+#include <exec/aggregate/lib/state.h>
 #include <exec/core/exec_batch.h>
 #include <exec/core/selection_vector.h>
-#include "core/row_group.h"
-#include "core/schema.h"
-#include "exec/aggregate/spec.h"
-#include "exec/aggregate/consumers.h"
-#include "exec/aggregate/state.h"
-#include "exec/interface/expression.h"
-#include "exec/interface/operator.h"
-#include "util/assert.h"
+#include <exec/interface/expression.h>
+#include <exec/interface/operator.h>
+
+#include <core/row_group.h>
+#include <core/schema.h>
+
+#include <util/assert.h>
+#include <util/int128.h>
 
 namespace Columnar::Exec {
-
-namespace {
-
-void AppendResult(RowGroupBuilder& builder, size_t idx, const AggregateState& state) {
-    std::visit(
-        [&](const auto& s) {
-            using S = std::decay_t<decltype(s)>;
-
-            if constexpr (std::is_same_v<S, CountState>) {
-                builder.Append<int64_t>(idx, static_cast<int64_t>(s.count));
-            } else if constexpr (std::is_same_v<S, SumState<int64_t>>) {
-                builder.Append<int64_t>(idx, s.sum);
-            } else if constexpr (std::is_same_v<S, SumState<double>>) {
-                builder.Append<int64_t>(idx, static_cast<int64_t>(s.sum));
-            } else if constexpr (std::is_same_v<S, AvgState>) {
-                builder.Append<int64_t>(idx, s.Result());
-            } else if constexpr (requires { s.seen.size(); }) {
-                builder.Append<int64_t>(idx, static_cast<int64_t>(s.seen.size()));
-            } else {
-                // MinMaxState<T>
-                using V = std::decay_t<decltype(*s.value)>;
-                builder.Append<V>(idx, s.value.has_value() ? *s.value : V{});
-            }
-        },
-        state);
-}
-
-}  // namespace
 
 GlobalAggregation::GlobalAggregation(std::unique_ptr<IOperator> child, std::vector<AggregateSpec> aggregates)
     : child_(std::move(child)),
@@ -101,6 +77,8 @@ AggregateState GlobalAggregation::MakeInitialState(const AggregateSpec& spec) co
                     return CountDistinctState<int32_t>{};
                 case Types::PhysicalType::INT64:
                     return CountDistinctState<int64_t>{};
+                case Types::PhysicalType::INT128:
+                    return CountDistinctState<Int128>{};
                 case Types::PhysicalType::STRING:
                     return CountDistinctState<std::string>{};
                 default:
@@ -111,9 +89,9 @@ AggregateState GlobalAggregation::MakeInitialState(const AggregateSpec& spec) co
             switch (Types::ToPhysical(spec.InputType())) {
                 case Types::PhysicalType::INT16:
                 case Types::PhysicalType::INT32:
-                    return SumState<int64_t>{};
                 case Types::PhysicalType::INT64:
-                    return SumState<double>{};
+                case Types::PhysicalType::INT128:
+                    return SumState<Int128>{};
                 case Types::PhysicalType::BOOL:
                 case Types::PhysicalType::STRING:
                     throw std::runtime_error("SUM not supported for BOOL/STRING");
@@ -131,6 +109,8 @@ AggregateState GlobalAggregation::MakeInitialState(const AggregateSpec& spec) co
                     return MinMaxState<int32_t>{};
                 case Types::PhysicalType::INT64:
                     return MinMaxState<int64_t>{};
+                case Types::PhysicalType::INT128:
+                    return MinMaxState<Int128>{};
                 case Types::PhysicalType::BOOL:
                     return MinMaxState<uint8_t>{};
                 case Types::PhysicalType::STRING:
@@ -156,11 +136,10 @@ void GlobalAggregation::Consume(const ExecBatch& batch) {
             case AggregateKind::CountDistinct: {
                 COLUMNAR_ASSERT(spec.HasInput(), "CountDistinct needs input");
                 const ColumnSpan span = spec.input->EvaluateColumn(batch, inputStates_[i]);
-                std::visit([&](auto& ds) {
-                    if constexpr (requires { ds.seen.size(); }) {
-                        ConsumeCountDistinct(span, ds);
-                    }
-                },
+                std::visit(Types::overloaded{
+                               [&]<typename T>(CountDistinctState<T>& ds) { ConsumeCountDistinct(span, ds); },
+                               [](auto&) {},
+                           },
                            state);
                 break;
             }
@@ -172,26 +151,21 @@ void GlobalAggregation::Consume(const ExecBatch& batch) {
                 COLUMNAR_ASSERT(spec.HasInput(), "aggregate requires input");
                 const ColumnSpan span =
                     spec.input->EvaluateColumn(batch, inputStates_[i]);
-                std::visit([&](const auto& s) {
-                    using T = std::remove_cv_t<typename std::decay_t<decltype(s)>::element_type>;
-                    if constexpr (std::is_same_v<T, std::string>) {
-                        // String: only Min/Max supported.
-                        auto& mm = std::get<MinMaxState<std::string>>(state);
-                        const bool isMin = (spec.kind == AggregateKind::Min);
-                        if (!isMin && spec.kind != AggregateKind::Max)
-                            throw std::runtime_error("unsupported aggregate on STRING");
-                        for (const std::string& v : s)
-                            if (!mm.value.has_value() || (isMin ? v < *mm.value : v > *mm.value)) {
-                                mm.value = v;
-                            }
-                    } else if constexpr (std::is_same_v<T, uint8_t>) {
-                        throw std::runtime_error("aggregate on BOOL not supported");
-                    } else if constexpr (std::is_same_v<T, int64_t>) {
-                        ConsumeTyped<T, double>(s, spec.kind, state);
-                    } else {
-                        ConsumeTyped<T, int64_t>(s, spec.kind, state);
-                    }
-                },
+                std::visit(Types::overloaded{
+                               [&](std::span<const std::string> s) {
+                                   auto& mm = std::get<MinMaxState<std::string>>(state);
+                                   const bool isMin = (spec.kind == AggregateKind::Min);
+                                   if (!isMin && spec.kind != AggregateKind::Max)
+                                       throw std::runtime_error("unsupported aggregate on STRING");
+                                   for (const std::string& v : s)
+                                       if (!mm.value.has_value() || (isMin ? v < *mm.value : v > *mm.value))
+                                           mm.value = v;
+                               },
+                               [](std::span<const uint8_t>) {
+                                   throw std::runtime_error("aggregate on BOOL not supported");
+                               },
+                               [&]<typename T>(std::span<const T> s) { ConsumeTyped<T, Int128>(s, spec.kind, state); },
+                           },
                            span);
                 break;
             }
@@ -207,7 +181,7 @@ RowGroup GlobalAggregation::BuildResult() const {
 
     RowGroupBuilder builder(std::move(schema));
     for (size_t i = 0; i < aggregates_.size(); ++i) {
-        AppendResult(builder, i, states_[i]);
+        AppendAggregateResult(builder, i, states_[i]);
     }
     return builder.Finish();
 }

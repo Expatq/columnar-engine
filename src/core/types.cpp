@@ -1,5 +1,6 @@
 #include <core/types.h>
 #include <util/assert.h>
+#include "util/int128.h"
 
 namespace Columnar::Types {
 
@@ -8,10 +9,13 @@ PhysicalType ToPhysical(LogicalType logical) {
         case LogicalType::INT16:
             return PhysicalType::INT16;
         case LogicalType::INT32:
+            return PhysicalType::INT32;
         case LogicalType::DATE:
             return PhysicalType::INT32;
         case LogicalType::INT64:
+            return PhysicalType::INT64;
         case LogicalType::INT128:
+            return PhysicalType::INT128;
         case LogicalType::TIMESTAMP:
             return PhysicalType::INT64;
         case LogicalType::BOOL:
@@ -74,6 +78,8 @@ AnyColumnData CreateEmptyColumnData(PhysicalType type) {
             return std::vector<int32_t>{};
         case PhysicalType::INT64:
             return std::vector<int64_t>{};
+        case PhysicalType::INT128:
+            return std::vector<Int128>{};
         case PhysicalType::BOOL:
             return std::vector<uint8_t>{};
         case PhysicalType::STRING:

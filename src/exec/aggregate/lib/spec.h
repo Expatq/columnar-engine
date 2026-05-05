@@ -57,6 +57,7 @@ struct AggregateSpec {
 
 AggregateSpec CountStar(std::string outputName);
 AggregateSpec CountColumn(std::unique_ptr<IExpression> input, std::string outputName);
+AggregateSpec CountDistinct(std::unique_ptr<IExpression> input, std::string outputName);
 AggregateSpec Sum(std::unique_ptr<IExpression> input, std::string outputName, Types::LogicalType outputType);
 AggregateSpec Avg(std::unique_ptr<IExpression> input, std::string outputName, Types::LogicalType outputType);
 AggregateSpec Min(std::unique_ptr<IExpression> input, std::string outputName);

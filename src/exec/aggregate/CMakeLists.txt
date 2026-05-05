@@ -1,23 +1,12 @@
-add_library(
-    columnar_exec_aggregate
-    STATIC
-    spec.cpp
-    global_aggregation.cpp
-    consumers.cpp
-)
+add_subdirectory(global)
+add_subdirectory(groupby)
+add_subdirectory(lib)
 
-target_include_directories(
-    columnar_exec_aggregate
-    PUBLIC
-    ${CMAKE_SOURCE_DIR}/src
-)
+add_library(columnar_exec_aggregate INTERFACE)
 
 target_link_libraries(
     columnar_exec_aggregate
-    PUBLIC
-    columnar_core
-    columnar_exec_core
-    columnar_exec_interface
-    columnar_exec_expression
-    columnar_exec_result_format
+    INTERFACE
+    columnar_exec_aggregate_global
+    columnar_exec_aggregate_groupby
 )

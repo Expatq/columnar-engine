@@ -1,7 +1,7 @@
 #pragma once
 
-#include "spec.h"
-#include "state.h"
+#include <exec/aggregate/lib/state.h>
+#include <exec/aggregate/lib/spec.h>
 
 #include <core/row_group.h>
 #include <exec/core/exec_batch.h>

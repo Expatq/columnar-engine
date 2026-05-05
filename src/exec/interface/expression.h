@@ -56,6 +56,7 @@ enum class DateTruncUnit {
 using ColumnSpan = std::variant<std::span<const int16_t>,
                                 std::span<const int32_t>,
                                 std::span<const int64_t>,
+                                std::span<const Int128>,
                                 std::span<const uint8_t>,
                                 std::span<const std::string>>;
 

@@ -5,6 +5,7 @@
 #include <variant>
 #include <vector>
 
+#include <util/int128.h>
 #include <util/types_macro.h>
 
 namespace Columnar::Types {
@@ -15,7 +16,7 @@ enum class LogicalType : uint8_t {
     INT16 = 0,
     INT32 = 1,
     INT64 = 2,
-    INT128 = 3,  // TODO: add int128 support
+    INT128 = 3,
     BOOL = 4,
     STRING = 5,
     DATE = 6,
@@ -26,8 +27,9 @@ enum class PhysicalType : uint8_t {
     INT16 = 0,
     INT32 = 1,
     INT64 = 2,
-    BOOL = 3,
-    STRING = 4
+    INT128 = 3,
+    BOOL = 4,
+    STRING = 5
 };
 
 PhysicalType ToPhysical(LogicalType logical);
@@ -37,10 +39,10 @@ inline size_t GetPhysVariantIndex(PhysicalType physical_type) {
 }
 
 using AnyPhysicalType =
-    std::variant<int16_t, int32_t, int64_t, uint8_t, std::string>;
+    std::variant<int16_t, int32_t, int64_t, Int128, uint8_t, std::string>;
 
 using AnyColumnData = std::variant<std::vector<int16_t>, std::vector<int32_t>,
-                                   std::vector<int64_t>, std::vector<uint8_t>,
+                                   std::vector<int64_t>, std::vector<Int128>, std::vector<uint8_t>,
                                    std::vector<std::string>>;
 
 template <typename... Ts>
