@@ -4,6 +4,8 @@
 #include <exec/core/exec_batch.h>
 #include <exec/core/selection_vector.h>
 
+#include <util/assert.h>
+
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -93,7 +95,7 @@ public:
     Implemented by: Comparison, Logical, Not, Like
     */
     virtual void EvaluateSelection(const ExecBatch& /*input*/, SelectionVector& /*out*/) const {
-        throw std::runtime_error("expression cannot produce selection");
+        COLUMNAR_ASSERT(false, "expression cannot produce selection");
     }
 
     /* Mode 2 — Columnar: returns non-owning view of active-row values.
@@ -103,14 +105,14 @@ public:
        state is owned by caller and reused across batches (no re-alloc after first).
     */
     virtual ColumnSpan EvaluateColumn(const ExecBatch& /*input*/, EvalState& /*state*/) const {
-        throw std::runtime_error("expression cannot produce column");
+        COLUMNAR_ASSERT(false, "expression cannot produce column");
     }
 
     /* Mode-3 - Scalar: evaluates one row (slow per-row vtable call)
     Only used for CountDistinct
     */
     virtual Types::AnyPhysicalType EvaluateScalar(const ExecBatch& /*input*/, RowId /*row*/) const {
-        throw std::runtime_error("expression cannot produce scalar");
+        COLUMNAR_ASSERT(false, "expression cannot produce scalar");
     }
 };
 
