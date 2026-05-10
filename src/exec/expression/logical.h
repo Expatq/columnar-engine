@@ -32,11 +32,4 @@ private:
     std::vector<std::unique_ptr<IExpression>> operands_;
 };
 
-inline auto And(std::vector<std::unique_ptr<IExpression>> ops) {
-    return std::make_unique<LogicalExpression>(LogicalOp::And, std::move(ops));
-}
-inline auto Or(std::vector<std::unique_ptr<IExpression>> ops) {
-    return std::make_unique<LogicalExpression>(LogicalOp::Or, std::move(ops));
-}
-
 }  // namespace Columnar::Exec
