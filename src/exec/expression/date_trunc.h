@@ -14,7 +14,7 @@ namespace Columnar::Exec {
 
 class DateTruncExpression : public IExpression {
 public:
-    DateTruncExpression(std::unique_ptr<IExpression> input, DateTruncUnit unit);
+    DateTruncExpression(std::unique_ptr<IExpression> inputExpr, DateTruncUnit unit);
 
     ExpressionKind Kind() const override;
     Types::LogicalType ResultType() const override;
@@ -24,21 +24,10 @@ public:
     Types::AnyPhysicalType EvaluateScalar(const ExecBatch& input, RowId row) const override;
 
 private:
-    int64_t GetDivisor() const {
-        switch (unit_) {
-            case DateTruncUnit::Minute:
-                return 60LL;
-            case DateTruncUnit::Hour:
-                return 3600LL;
-            case DateTruncUnit::Day:
-                return 86400LL;
-            default:
-                throw std::runtime_error("DateTrunc: unsupported unit");
-        }
-    }
+    int64_t GetDivisor() const;
 
 private:
-    std::unique_ptr<IExpression> input_;
+    std::unique_ptr<IExpression> inputExpr_;
     DateTruncUnit unit_;
     mutable EvalState inputState_;
 };
