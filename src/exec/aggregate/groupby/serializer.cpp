@@ -92,7 +92,7 @@ Int128 GroupByKeySerializer::PackInt128(const std::vector<ColumnSpan>& keyCols, 
     return key;
 }
 
-InlineKey MakeInlineKey(const char* data, size_t len, KeysArena* arena) {
+InlineKey GroupByKeySerializer::MakeInlineKey(const char* data, size_t len, KeysArena* arena) {
     InlineKey key;
     key.hash = std::hash<std::string_view>{}({data, len});
     key.len = static_cast<uint32_t>(len);

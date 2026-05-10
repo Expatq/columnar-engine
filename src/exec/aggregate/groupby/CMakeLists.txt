@@ -2,6 +2,7 @@ add_library(
     columnar_exec_aggregate_groupby
     STATIC
     aggregation.cpp
+    serializer.cpp
 )
 
 target_include_directories(

@@ -28,6 +28,27 @@ using GroupByKeys = std::vector<GroupByKey>;
 using AggSpecs = std::vector<AggregateSpec>;
 using SortKeys = std::vector<SortKey>;
 
+template <typename T, typename... Args>
+std::vector<T> MakeVec(Args&&... args) {
+    std::vector<T> v;
+    v.reserve(sizeof...(args));
+    (v.push_back(std::forward<Args>(args)), ...);
+    return v;
+}
+
+template <typename... Ts>
+AggSpecs Aggs(Ts&&... a) {
+    return MakeVec<AggregateSpec>(std::forward<Ts>(a)...);
+}
+template <typename... Ts>
+GroupByKeys Keys(Ts&&... a) {
+    return MakeVec<GroupByKey>(std::forward<Ts>(a)...);
+}
+template <typename... Ts>
+SortKeys SortBy(Ts&&... a) {
+    return MakeVec<SortKey>(std::forward<Ts>(a)...);
+}
+
 constexpr auto Bool = Types::LogicalType::BOOL;
 constexpr auto I16 = Types::LogicalType::INT16;
 constexpr auto I32 = Types::LogicalType::INT32;
