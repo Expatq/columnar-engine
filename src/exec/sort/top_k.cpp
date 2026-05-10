@@ -47,7 +47,7 @@ bool TopK::Next(ExecBatch& out) {
 }
 
 void TopK::Close() noexcept {
-    child_->Open();
+    child_->Close();
     heap_.clear();
     keyColIndices_.clear();
     produced_ = false;

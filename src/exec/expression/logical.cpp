@@ -49,12 +49,12 @@ std::vector<std::string> LogicalExpression::RequiredColumns() const {
 
 void LogicalExpression::EvaluateSelection(const ExecBatch& input, SelectionVector& out) const {
     switch (op_) {
-        case LogicalOp::And: {
+        case LogicalOp::And:
             EvalAnd(input, out);
-        }
-        case LogicalOp::Or: {
+            return;
+        case LogicalOp::Or:
             EvalOr(input, out);
-        }
+            return;
     }
 }
 
@@ -80,7 +80,7 @@ void LogicalExpression::EvalOr(const ExecBatch& input, SelectionVector& out) con
     if (input.has_selection) {
         remaining = input.selection;
     } else {
-        remaining.MutableRows().reserve(input.rowCount);
+        remaining.MutableRows().resize(input.rowCount);
         std::iota(remaining.MutableRows().begin(), remaining.MutableRows().end(), 0);
     }
 

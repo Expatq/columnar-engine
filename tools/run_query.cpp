@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
 
         Columnar::Exec::ExecBatch batch;
         while (runner.Next(batch)) {
-            if (batch.rowGroup.has_value()) {
+            if (batch.rowGroup) {
                 PrintRowGroup(*batch.rowGroup);
             }
         }

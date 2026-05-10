@@ -16,6 +16,7 @@
 namespace Columnar::Exec {
 
 class TopK : public IOperator {
+public:
     TopK(std::unique_ptr<IOperator> child,
          std::vector<SortKey> keys,
          size_t limit,

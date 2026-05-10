@@ -4,6 +4,7 @@ add_library(
     comparison.cpp
     column_ref.cpp
     arithmetic.cpp
+    logical.cpp
     like.cpp
     date_trunc.cpp
 )

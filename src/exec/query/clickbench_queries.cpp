@@ -1,7 +1,7 @@
 #include "clickbench_queries.h"
 
-#include <exec/aggregate/global_aggregation.h>
-#include <exec/aggregate/spec.h>
+#include <exec/aggregate/global/aggregation.h>
+#include <exec/aggregate/lib/spec.h>
 #include <exec/core/required_columns.h>
 #include <exec/expression/column_ref.h>
 #include <exec/expression/comparison.h>
