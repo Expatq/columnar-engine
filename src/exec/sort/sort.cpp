@@ -42,7 +42,7 @@ bool Sort::Next(ExecBatch& out) {
     });
 
     out.Reset();
-    out.rowGroup.emplace(BuildOutput(indices));
+    out.rowGroup = std::make_shared<RowGroup>(BuildOutput(indices));
     out.rowCount = rowCount_;
     produced_ = true;
     return rowCount_ > 0;
@@ -74,7 +74,7 @@ bool Sort::IsLess(size_t lhsRowId, size_t rhsRowId) const {
 }
 
 void Sort::AppendBatch(const ExecBatch& batch) {
-    if (!batch.rowGroup.has_value() || batch.Empty()) {
+    if (!batch.rowGroup || batch.Empty()) {
         return;
     }
 

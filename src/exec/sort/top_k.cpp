@@ -40,7 +40,7 @@ bool TopK::Next(ExecBatch& out) {
         ProcessBatch(input_);
     }
     out.Reset();
-    out.rowGroup.emplace(BuildOutput());
+    out.rowGroup = std::make_shared<RowGroup>(BuildOutput());
     out.rowCount = out.rowGroup->GetRowCount();
     produced_ = true;
     return out.rowCount > 0;
@@ -71,7 +71,7 @@ bool TopK::IsLess(const Row& first, const Row& second) const {
 }
 
 void TopK::ProcessBatch(const ExecBatch& batch) {
-    if (!batch.rowGroup.has_value() || batch.Empty()) {
+    if (!batch.rowGroup || batch.Empty()) {
         return;
     }
 

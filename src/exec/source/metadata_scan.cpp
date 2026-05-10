@@ -38,7 +38,7 @@ bool MetadataScan::Next(ExecBatch& out) {
     }
 
     out.Reset();
-    out.rowGroup.emplace(builder.Finish());
+    out.rowGroup = std::make_shared<RowGroup>(builder.Finish());
     out.rowCount = 1;
 
     produced_ = true;

@@ -51,7 +51,7 @@ bool GlobalAggregation::Next(ExecBatch& out) {
     }
 
     out.Reset();
-    out.rowGroup.emplace(BuildResult());
+    out.rowGroup = std::make_shared<RowGroup>(BuildResult());
     out.rowCount = 1;
     produced_ = true;
     return true;

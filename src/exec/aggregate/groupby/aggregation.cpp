@@ -102,7 +102,7 @@ bool GroupByAggregation::Next(ExecBatch& out) {
         Consume(input_);
     }
     out.Reset();
-    out.rowGroup.emplace(BuildResult());
+    out.rowGroup = std::make_shared<RowGroup>(BuildResult());
     out.rowCount = out.rowGroup->GetRowCount();
     produced_ = true;
     return true;

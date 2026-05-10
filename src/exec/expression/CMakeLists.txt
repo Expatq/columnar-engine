@@ -3,6 +3,9 @@ add_library(
     STATIC
     comparison.cpp
     column_ref.cpp
+    arithmetic.cpp
+    like.cpp
+    date_trunc.cpp
 )
 
 target_include_directories(

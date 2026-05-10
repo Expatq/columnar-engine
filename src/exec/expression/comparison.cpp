@@ -60,7 +60,7 @@ bool CompareValues(const T& left, CompareOp op, const T& right) {
 }
 
 const Column& ResolveColumn(const ExecBatch& input, const std::string& name) {
-    COLUMNAR_ASSERT(input.rowGroup.has_value(), "expression requires RowGroup");
+    COLUMNAR_ASSERT(input.rowGroup != nullptr, "expression requires RowGroup");
     const Column* column = input.rowGroup->FindColumn(name);
     COLUMNAR_ASSERT(column != nullptr, "Unknown column: " + name);
     return *column;

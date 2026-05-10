@@ -32,7 +32,7 @@ bool Limit::Next(ExecBatch& out) {
     std::optional<RowGroupBuilder> builderStorage;
 
     while (takeCnt > 0 && child_->Next(input_)) {
-        if (!input_.rowGroup.has_value() || input_.Empty()) {
+        if (!input_.rowGroup || input_.Empty()) {
             continue;
         }
 
@@ -74,7 +74,7 @@ bool Limit::Next(ExecBatch& out) {
 
     out.Reset();
     if (builderStorage.has_value()) {
-        out.rowGroup.emplace(builderStorage->Finish());
+        out.rowGroup = std::make_shared<RowGroup>(builderStorage->Finish());
         out.rowCount = out.rowGroup->GetRowCount();
     }
     produced_ = true;
