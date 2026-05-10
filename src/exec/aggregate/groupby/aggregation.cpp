@@ -150,7 +150,7 @@ void GroupByAggregation::Consume(const ExecBatch& batch) {
                 break;
             }
             case KeyMode::Int128: {
-                const uint64_t key = GroupByKeySerializer::PackInt128(keyCols, idx);
+                const Int128 key = GroupByKeySerializer::PackInt128(keyCols, idx);
                 auto it = groupsInt128_.find(key);
                 if (it == groupsInt128_.end()) {
                     it = groupsInt128_.emplace(key, GroupEntry{MakeInitialStates()}).first;
