@@ -22,7 +22,7 @@ public:
     std::vector<std::string> RequiredColumns() const override;
 
     void EvaluateSelection(const ExecBatch& input, SelectionVector& out) const override;
-    
+
 private:
     std::unique_ptr<IExpression> operand_;
 };

@@ -20,8 +20,7 @@ ColumnSpan ColumnRefExpression::EvaluateColumn(const ExecBatch& input, EvalState
     if (!input.has_selection) {
         return std::visit([](const auto& vec) -> ColumnSpan {
             return std::span{vec.data(), vec.size()};
-        },
-                          col->GetData());
+        },col->GetData());
     }
 
     return std::visit([&](const auto& src) -> ColumnSpan {
@@ -31,9 +30,8 @@ ColumnSpan ColumnRefExpression::EvaluateColumn(const ExecBatch& input, EvalState
         for (RowId row : input.selection.Rows()) {
             out[i++] = src[row];
         }
-        return std::span<T>{out.data(), out.size()};
-    },
-                      col->GetData());
+        return std::span<const T>{out.data(), out.size()};
+    },col->GetData());
 }
 
 Types::AnyPhysicalType ColumnRefExpression::EvaluateScalar(const ExecBatch& input, RowId row) const {
