@@ -125,30 +125,19 @@ void FormatWriter::WriteSchema() {
 void FormatWriter::WriteColumn(const Column& col) {
     std::visit(Types::overloaded{
                    [this](const std::vector<int16_t>& v) {
-                       for (int16_t x : v) {
-                           writer_.Write(&x, sizeof(x));
-                       }
+                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<int32_t>& v) {
-                       for (int32_t x : v) {
-                           writer_.Write(&x, sizeof(x));
-                       }
+                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<int64_t>& v) {
-                       for (int64_t x : v) {
-                           writer_.Write(&x, sizeof(x));
-                       }
+                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<Int128>& v) {
-                       for (const Int128& x : v) {
-                           writer_.Write(&x, sizeof(x));
-                       }
+                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<uint8_t>& v) {
-                       for (uint8_t b : v) {
-                           uint8_t byte = b != 0 ? 1 : 0;
-                           writer_.Write(&byte, sizeof(byte));
-                       }
+                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<std::string>& v) {
                        for (const auto& s : v) {

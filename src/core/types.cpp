@@ -63,6 +63,8 @@ LogicalType ParseLogicalType(const std::string& type_name) {
         return LogicalType::BOOL;
     if (type_name == "string")
         return LogicalType::STRING;
+    if (type_name == "char")
+        return LogicalType::STRING;
     if (type_name == "date")
         return LogicalType::DATE;
     if (type_name == "timestamp")

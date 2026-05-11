@@ -24,6 +24,7 @@ enum class ExpressionKind {
     DateTrunc,
     StringLen,
     RegexReplace,
+    CaseWhen,
 };
 
 enum class CompareOp {
