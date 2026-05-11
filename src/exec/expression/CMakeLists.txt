@@ -7,6 +7,9 @@ add_library(
     logical.cpp
     like.cpp
     date_trunc.cpp
+    not.cpp
+    string_len.cpp
+    case_when.cpp
 )
 
 target_include_directories(

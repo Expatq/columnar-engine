@@ -8,19 +8,26 @@
 #include <exec/aggregate/lib/spec.h>
 
 #include <exec/expression/arithmetic.h>
+#include <exec/expression/case_when.h>
 #include <exec/expression/column_ref.h>
 #include <exec/expression/comparison.h>
+#include <exec/expression/regex_replace.h>
 #include <exec/expression/date_trunc.h>
 #include <exec/expression/like.h>
 #include <exec/expression/literal.h>
 #include <exec/expression/logical.h>
+#include <exec/expression/not.h>
+#include <exec/expression/string_len.h>
 
+#include <exec/core/required_columns.h>
 #include <exec/filter/filter.h>
-
 #include <exec/sort/top_k.h>
-
 #include <exec/source/table_scan.h>
-#include "core/types.h"
+#include <exec/interface/expression.h>
+
+#include <core/types.h>
+
+#include <memory>
 
 namespace Columnar::Exec {
 
@@ -94,18 +101,23 @@ inline auto Cmp(std::unique_ptr<IExpression> l, CompareOp op, std::unique_ptr<IE
     return std::make_unique<ComparisonExpression>(std::move(l), op, std::move(r));
 }
 
-inline auto And(std::vector<std::unique_ptr<IExpression>> exprs) {
-    return std::make_unique<LogicalExpression>(LogicalOp::And, std::move(exprs));
+template <typename... Ts>
+inline auto And(Ts&&... exprs) {
+    return std::make_unique<LogicalExpression>(
+        LogicalOp::And,
+        MakeVec<std::unique_ptr<IExpression>>(std::forward<Ts>(exprs)...));
 }
 
-inline auto Or(std::vector<std::unique_ptr<IExpression>> exprs) {
-    return std::make_unique<LogicalExpression>(LogicalOp::Or, std::move(exprs));
+template <typename... Ts>
+inline auto Or(Ts&&... exprs) {
+    return std::make_unique<LogicalExpression>(
+        LogicalOp::Or,
+        MakeVec<std::unique_ptr<IExpression>>(std::forward<Ts>(exprs)...));
 }
 
-// TODO: impl not expression
-// inline auto Not(std::unique_ptr<IExpression> expr) {
-//     return std::make_unique<NotExpression>(std::move(expr));
-// }
+inline auto Not(std::unique_ptr<IExpression> expr) {
+    return std::make_unique<NotExpression>(std::move(expr));
+}
 
 inline auto Like(std::unique_ptr<IExpression> input, std::string pattern) {
     return std::make_unique<LikeExpression>(std::move(input), pattern);
@@ -117,6 +129,18 @@ inline auto DateTrunc(std::unique_ptr<IExpression> input, DateTruncUnit unit) {
 
 inline auto Arithm(std::unique_ptr<IExpression> l, ArithmOp op, std::unique_ptr<IExpression> r) {
     return std::make_unique<ArithmeticExpression>(std::move(l), op, std::move(r));
+}
+
+inline auto StrLen(std::unique_ptr<IExpression> input) {
+    return std::make_unique<StringLenExpression>(std::move(input));
+}
+
+inline auto CaseWhen(std::unique_ptr<IExpression> cond, std::unique_ptr<IExpression> then_expr, std::unique_ptr<IExpression> else_expr) {
+    return std::make_unique<CaseWhenExpression>(std::move(cond), std::move(then_expr), std::move(else_expr));
+}
+
+inline auto RegexReplace(std::unique_ptr<IExpression> input, std::string pattern, std::string replacement) {
+    return std::make_unique<RegexReplaceExpression>(std::move(input), std::move(pattern), std::move(replacement));
 }
 
 /*
@@ -137,9 +161,12 @@ inline SortKey Asc(std::unique_ptr<IExpression> expr) {
 /*
 Operator factories
 */
-
 inline auto Scan(const std::string& path, std::vector<std::string> cols) {
     return std::make_unique<TableScan>(path, RequiredColumns::Only(std::move(cols)));
+}
+
+inline auto ScanAll(const std::string& path) {
+    return std::make_unique<TableScan>(path, RequiredColumns::All());
 }
 
 inline auto Where(std::unique_ptr<IOperator> child, std::unique_ptr<IExpression> pred) {
