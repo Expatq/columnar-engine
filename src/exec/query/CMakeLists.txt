@@ -17,4 +17,5 @@ target_link_libraries(
     columnar_exec_filter
     columnar_exec_expression
     columnar_exec_aggregate
+    columnar_exec_sort
 )

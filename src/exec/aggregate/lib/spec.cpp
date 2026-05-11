@@ -1,7 +1,11 @@
 #include "spec.h"
 
+#include <algorithm>
+#include <memory>
 #include <stdexcept>
 #include <utility>
+#include "core/types.h"
+#include "exec/interface/expression.h"
 
 namespace Columnar::Exec {
 namespace {
@@ -27,6 +31,14 @@ AggregateSpec CountColumn(std::unique_ptr<IExpression> input,
                           std::string outputName) {
     return AggregateSpec(
         AggregateKind::CountColumn,
+        RequireInput(std::move(input)),
+        std::move(outputName),
+        Types::LogicalType::INT64);
+}
+
+AggregateSpec CountDistinct(std::unique_ptr<IExpression> input, std::string outputName) {
+    return AggregateSpec(
+        AggregateKind::CountDistinct,
         RequireInput(std::move(input)),
         std::move(outputName),
         Types::LogicalType::INT64);

@@ -35,7 +35,7 @@ bool TableScan::Next(ExecBatch& out) {
     }
 
     out.rowCount = rowGroup->GetRowCount();
-    out.rowGroup.emplace(std::move(*rowGroup));
+    out.rowGroup = std::make_shared<RowGroup>(std::move(*rowGroup));
     return true;
 }
 

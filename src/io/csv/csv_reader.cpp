@@ -8,6 +8,7 @@
 #include <core/types.h>
 
 #include <util/assert.h>
+#include <util/int128.h>
 
 #include <optional>
 #include <stdexcept>
@@ -117,6 +118,9 @@ void CsvReader::AppendToBuffer(size_t colIdx, const std::string& value) {
             },
             [&](std::vector<std::string>& v) {
                 v.push_back(std::get<std::string>(parsed));
+            },
+            [&](std::vector<Int128>& v) {
+                v.push_back(std::get<Int128>(parsed));
             },
         },
         buffers_[colIdx]);

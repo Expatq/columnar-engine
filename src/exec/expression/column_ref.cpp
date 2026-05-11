@@ -13,7 +13,7 @@
 namespace Columnar::Exec {
 
 ColumnSpan ColumnRefExpression::EvaluateColumn(const ExecBatch& input, EvalState& state) const {
-    COLUMNAR_ASSERT(input.rowGroup.has_value(), "ColumnRef needs RowGroup");
+    COLUMNAR_ASSERT(input.rowGroup != nullptr, "ColumnRef needs RowGroup");
     const Column* col = input.rowGroup->FindColumn(column_);
     COLUMNAR_ASSERT(col != nullptr, "column not found: " + column_);
 
@@ -37,7 +37,7 @@ ColumnSpan ColumnRefExpression::EvaluateColumn(const ExecBatch& input, EvalState
 }
 
 Types::AnyPhysicalType ColumnRefExpression::EvaluateScalar(const ExecBatch& input, RowId row) const {
-    COLUMNAR_ASSERT(input.rowGroup.has_value(), "ColumnRef needs RowGroup");
+    COLUMNAR_ASSERT(input.rowGroup != nullptr, "ColumnRef needs RowGroup");
     const Column* col = input.rowGroup->FindColumn(column_);
     COLUMNAR_ASSERT(col != nullptr, "column not found: " + column_);
 
@@ -48,6 +48,8 @@ Types::AnyPhysicalType ColumnRefExpression::EvaluateScalar(const ExecBatch& inpu
             return col->GetTypedData<int32_t>()[row];
         case Types::PhysicalType::INT64:
             return col->GetTypedData<int64_t>()[row];
+        case Types::PhysicalType::INT128:
+            return col->GetTypedData<Int128>()[row];
         case Types::PhysicalType::BOOL:
             return col->GetTypedData<uint8_t>()[row];
         case Types::PhysicalType::STRING:

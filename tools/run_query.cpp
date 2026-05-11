@@ -23,6 +23,38 @@ std::unique_ptr<Columnar::Exec::IOperator> BuildQuery(
             return Columnar::Exec::BuildQ3(path);
         case 4:
             return Columnar::Exec::BuildQ4(path);
+        case 5:
+            return Columnar::Exec::BuildQ5(path);
+        case 6:
+            return Columnar::Exec::BuildQ6(path);
+        case 7:
+            return Columnar::Exec::BuildQ7(path);
+        case 8:
+            return Columnar::Exec::BuildQ8(path);
+        case 9:
+            return Columnar::Exec::BuildQ9(path);
+        case 10:
+            return Columnar::Exec::BuildQ10(path);
+        case 11:
+            return Columnar::Exec::BuildQ11(path);
+        case 12:
+            return Columnar::Exec::BuildQ12(path);
+        case 13:
+            return Columnar::Exec::BuildQ13(path);
+        case 14:
+            return Columnar::Exec::BuildQ14(path);
+        case 15:
+            return Columnar::Exec::BuildQ15(path);
+        case 16:
+            return Columnar::Exec::BuildQ16(path);
+        case 17:
+            return Columnar::Exec::BuildQ17(path);
+        case 18:
+            return Columnar::Exec::BuildQ18(path);
+        case 19:
+            return Columnar::Exec::BuildQ19(path);
+        case 20:
+            return Columnar::Exec::BuildQ20(path);
         default:
             throw std::invalid_argument("unsupported query id: " +
                                         std::to_string(queryId));
@@ -68,7 +100,7 @@ int main(int argc, char** argv) {
 
         Columnar::Exec::ExecBatch batch;
         while (runner.Next(batch)) {
-            if (batch.rowGroup.has_value()) {
+            if (batch.rowGroup) {
                 PrintRowGroup(*batch.rowGroup);
             }
         }

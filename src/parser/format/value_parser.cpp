@@ -4,6 +4,7 @@
 
 #include <core/types.h>
 
+#include <util/int128.h>
 #include <util/str.h>
 
 #include <charconv>
@@ -190,7 +191,8 @@ std::string ValueToString(const Types::AnyPhysicalType& value,
                               return v != 0 ? std::string("true")
                                             : std::string("false");
                           },
-                          [](const std::string& v) { return v; }},
+                          [](const std::string& v) { return v; },
+                          [](Columnar::Int128 v) { return Columnar::Int128ToString(v); }},
         value);
 }
 

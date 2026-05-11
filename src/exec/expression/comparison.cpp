@@ -60,7 +60,7 @@ bool CompareValues(const T& left, CompareOp op, const T& right) {
 }
 
 const Column& ResolveColumn(const ExecBatch& input, const std::string& name) {
-    COLUMNAR_ASSERT(input.rowGroup.has_value(), "expression requires RowGroup");
+    COLUMNAR_ASSERT(input.rowGroup != nullptr, "expression requires RowGroup");
     const Column* column = input.rowGroup->FindColumn(name);
     COLUMNAR_ASSERT(column != nullptr, "Unknown column: " + name);
     return *column;
@@ -174,6 +174,9 @@ void ComparisonExpression::EvaluateColumnLiteral(
         case Types::PhysicalType::INT64:
             EvalColumnLiteralTyped<int64_t>(input, data, literal, op_, output);
             return;
+        case Types::PhysicalType::INT128:
+            EvalColumnLiteralTyped<Int128>(input, data, literal, op_, output);
+            return;
         case Types::PhysicalType::BOOL:
             EvalColumnLiteralTyped<uint8_t>(input, data, literal, op_, output);
             return;
@@ -206,6 +209,10 @@ void ComparisonExpression::EvaluateColumnColumn(
             return;
         case Types::PhysicalType::BOOL:
             EvalColumnColumnTyped<uint8_t>(
+                input, leftData, rightData, op_, output);
+            return;
+        case Types::PhysicalType::INT128:
+            EvalColumnColumnTyped<Int128>(
                 input, leftData, rightData, op_, output);
             return;
         case Types::PhysicalType::STRING:

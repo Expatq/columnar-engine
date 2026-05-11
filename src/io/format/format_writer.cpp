@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include "core/row_group_meta.h"
+#include "util/int128.h"
 
 namespace Columnar::IO {
 
@@ -85,7 +86,7 @@ void FormatWriter::End() {
     writer_.Write(kMagicBytes, kMagicSize);
     FinalizeHeader();
     writer_.Flush();
-    
+
     ended_ = true;
 }
 
@@ -138,6 +139,11 @@ void FormatWriter::WriteColumn(const Column& col) {
                            writer_.Write(&x, sizeof(x));
                        }
                    },
+                   [this](const std::vector<Int128>& v) {
+                       for (const Int128& x : v) {
+                           writer_.Write(&x, sizeof(x));
+                       }
+                   },
                    [this](const std::vector<uint8_t>& v) {
                        for (uint8_t b : v) {
                            uint8_t byte = b != 0 ? 1 : 0;
@@ -179,7 +185,7 @@ void FormatWriter::FinalizeHeader() {
 
     writer_.Seek(24);
     writer_.Write(&footerOffset, sizeof(footerOffset));
-    
+
     writer_.Seek(endPos);
 }
 

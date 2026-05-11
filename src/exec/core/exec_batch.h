@@ -3,10 +3,12 @@
 #include <exec/core/selection_vector.h>
 #include <core/row_group.h>
 
+#include <memory>
+
 namespace Columnar::Exec {
 
 struct ExecBatch {
-    std::optional<RowGroup> rowGroup;
+    std::shared_ptr<RowGroup> rowGroup;
     size_t rowCount = 0;
 
     /*

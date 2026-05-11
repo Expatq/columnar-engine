@@ -4,10 +4,10 @@
 #include "spec.h"
 
 #include <exec/interface/expression.h>
+#include <core/types.h>
 
 #include <span>
 #include <stdexcept>
-#include <type_traits>
 
 namespace Columnar::Exec {
 
@@ -20,7 +20,7 @@ void ConsumeTyped(std::span<const T> data, AggregateKind kind, AggregateState& s
             return;
         case AggregateKind::Avg: {
             auto& a = std::get<AvgState>(state);
-            for (const T& v : data) { a.sum += static_cast<double>(v); ++a.count; }
+            for (const T& v : data) { a.sum += static_cast<Int128>(v); ++a.count; }
             return;
         }
         case AggregateKind::Min: {
@@ -42,26 +42,23 @@ void ConsumeTyped(std::span<const T> data, AggregateKind kind, AggregateState& s
 
 template <typename StateT>
 void ConsumeCountDistinct(const ColumnSpan& span, StateT& state) {
-    std::visit([&](const auto& s) {
-        using Key = typename StateT::value_type;
-        for (const auto& v : s) {
-            if constexpr (std::is_convertible_v<std::decay_t<decltype(v)>, Key>) {
-                state.seen.insert(static_cast<Key>(v));
-            }
-        }
+    using Key = typename StateT::value_type;
+    std::visit(Types::overloaded{
+        [&]<typename T>(std::span<const T> s) requires std::is_convertible_v<T, Key> {
+            for (const T& v : s) state.seen.insert(static_cast<Key>(v));
+        },
+        [](const auto&) {},
     }, span);
 }
 
 inline void InsertDistinct(const Types::AnyPhysicalType& val, AggregateState& state) {
     std::visit([&](const auto& v) {
         using V = std::decay_t<decltype(v)>;
-        std::visit([&](auto& ds) {
-            if constexpr (requires { ds.seen.size(); }) {
-                using Key = typename std::decay_t<decltype(ds)>::value_type;
-                if constexpr (std::is_convertible_v<V, Key>) {
-                    ds.seen.insert(static_cast<Key>(v));
-                }
-            }
+        std::visit(Types::overloaded{
+            [&]<typename T>(CountDistinctState<T>& ds) requires std::is_convertible_v<V, T> {
+                ds.seen.insert(static_cast<T>(v));
+            },
+            [](auto&) {},
         }, state);
     }, val);
 }

@@ -6,6 +6,7 @@ add_subdirectory(expression)
 add_subdirectory(filter)
 add_subdirectory(aggregate)
 add_subdirectory(query)
+add_subdirectory(sort)
 
 add_library(columnar_exec INTERFACE)
 
@@ -20,4 +21,5 @@ target_link_libraries(
     columnar_exec_filter
     columnar_exec_aggregate
     columnar_exec_query
+    columnar_exec_sort
 )
