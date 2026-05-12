@@ -1,4 +1,4 @@
-#include <io/binary/binary_io.h>
+#include <io/format/format_defs.h>
 #include <io/format/format_writer.h>
 
 #include <util/assert.h>
@@ -125,19 +125,24 @@ void FormatWriter::WriteSchema() {
 void FormatWriter::WriteColumn(const Column& col) {
     std::visit(Types::overloaded{
                    [this](const std::vector<int16_t>& v) {
-                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
+                       if (!v.empty())
+                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<int32_t>& v) {
-                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
+                       if (!v.empty())
+                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<int64_t>& v) {
-                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
+                       if (!v.empty())
+                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<Int128>& v) {
-                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
+                       if (!v.empty())
+                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<uint8_t>& v) {
-                       if (!v.empty()) writer_.Write(v.data(), v.size() * sizeof(v[0]));
+                       if (!v.empty())
+                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
                    },
                    [this](const std::vector<std::string>& v) {
                        for (const auto& s : v) {

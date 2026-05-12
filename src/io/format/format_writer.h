@@ -1,6 +1,6 @@
 #pragma once
 
-#include <io/binary/binary_io.h>
+#include <io/binary/file_writer.h>
 
 #include <core/column.h>
 #include <core/row_group.h>
@@ -32,7 +32,7 @@ public:
     ~FormatWriter();
 
 private:
-    BinaryWriter writer_;
+    FileWriter writer_;
     Schema schema_;
     std::vector<RowGroupMeta> rgMetas_;
 

@@ -1,5 +1,6 @@
 #include <io/format/format_reader.h>
 
+#include <io/format/format_defs.h>
 #include <util/assert.h>
 
 #include <cstdint>
@@ -12,22 +13,33 @@
 namespace Columnar::IO {
 
 FormatReader::FormatReader(const std::string& filename)
-    : reader_(filename) {
+    : file_(filename) {
     ValidateMagic();
     ReadHeader();
     ReadSchema();
     ReadFooter();
 }
 
+std::string FormatReader::ReadString() {
+    const uint32_t len = ReadField<uint32_t>();
+    if (len == 0) {
+        return {};
+    }
+
+    std::string s(len, '\0');
+    ReadBytes(s.data(), len);
+    return s;
+}
+
 void FormatReader::ValidateMagic() {
-    const size_t fileSize = reader_.GetFileSize();
+    const size_t fileSize = file_.GetFileSize();
     if (fileSize <= kMagicSize + kHeaderSize) {
         throw std::runtime_error("file too small to be valid .iyx");
     }
 
     uint8_t magic[kMagicSize];
-    reader_.Seek(fileSize - kMagicSize);
-    reader_.Read(magic, kMagicSize);
+    pos_ = fileSize - kMagicSize;
+    ReadBytes(magic, kMagicSize);
 
     for (size_t i = 0; i < kMagicSize; ++i) {
         if (magic[i] != kMagicBytes[i]) {
@@ -35,20 +47,20 @@ void FormatReader::ValidateMagic() {
         }
     }
 
-    reader_.Seek(0);
+    pos_ = 0;
 }
 
 void FormatReader::ReadHeader() {
-    reader_.Seek(0);
+    pos_ = 0;
 
     uint32_t rowGroupCount = 0;
     uint64_t schemaOffset = 0;
 
-    reader_.Read(&columnCount_, sizeof(columnCount_));
-    reader_.Read(&rowGroupCount, sizeof(rowGroupCount));
-    reader_.Read(&totalRowCount_, sizeof(totalRowCount_));
-    reader_.Read(&schemaOffset, sizeof(schemaOffset));
-    reader_.Read(&footerOffset_, sizeof(footerOffset_));
+    columnCount_ = ReadField<uint32_t>();
+    rowGroupCount = ReadField<uint32_t>();
+    totalRowCount_ = ReadField<uint64_t>();
+    schemaOffset = ReadField<uint64_t>();
+    footerOffset_ = ReadField<uint64_t>();
 
     if (schemaOffset != kHeaderSize) {
         throw std::runtime_error("unsupported schema offset");
@@ -58,32 +70,30 @@ void FormatReader::ReadHeader() {
     }
 
     rowGroupMetas_.reserve(rowGroupCount);
-    reader_.Seek(kHeaderSize);
+    pos_ = kHeaderSize;
 }
 
 void FormatReader::ReadSchema() {
     for (uint32_t i = 0; i < columnCount_; ++i) {
-        uint8_t type = 0;
-        reader_.Read(&type, sizeof(type));
-        std::string name = reader_.ReadString();
+        const uint8_t type = ReadField<uint8_t>();
+        std::string name = ReadString();
         schema_.AddColumn(name, static_cast<Types::LogicalType>(type));
     }
 }
 
 void FormatReader::ReadFooter() {
-    reader_.Seek(footerOffset_);
+    pos_ = footerOffset_;
 
-    uint32_t rowGroupCount = 0;
-    reader_.Read(&rowGroupCount, sizeof(rowGroupCount));
+    const uint32_t rowGroupCount = ReadField<uint32_t>();
 
     std::vector<uint64_t> offsets(rowGroupCount);
     for (uint32_t i = 0; i < rowGroupCount; ++i) {
-        reader_.Read(&offsets[i], sizeof(offsets[i]));
+        offsets[i] = ReadField<uint64_t>();
     }
 
     std::vector<uint32_t> rows(rowGroupCount);
     for (uint32_t i = 0; i < rowGroupCount; ++i) {
-        reader_.Read(&rows[i], sizeof(rows[i]));
+        rows[i] = ReadField<uint32_t>();
     }
 
     rowGroupMetas_.clear();
@@ -171,10 +181,9 @@ RowGroup FormatReader::ReadSelectedColumns(
         throw std::invalid_argument("selected column list cannot be empty");
     }
 
-    reader_.Seek(meta.offset);
+    pos_ = meta.offset;
 
-    int64_t rowCount = 0;
-    reader_.Read(&rowCount, sizeof(rowCount));
+    const int64_t rowCount = ReadField<int64_t>();
     if (rowCount < 0) {
         throw std::runtime_error("negative row count in row group");
     }
@@ -182,7 +191,7 @@ RowGroup FormatReader::ReadSelectedColumns(
     const size_t columnCount = schema_.GetColumnCount();
     std::vector<int64_t> colOffsets(columnCount);
     for (size_t i = 0; i < columnCount; ++i) {
-        reader_.Read(&colOffsets[i], sizeof(colOffsets[i]));
+        colOffsets[i] = ReadField<int64_t>();
     }
 
     Schema resultSchema;
@@ -202,8 +211,7 @@ RowGroup FormatReader::ReadSelectedColumns(
         const auto& schemaColumn = schema_.GetColumn(columnIndex);
         resultSchema.AddColumn(schemaColumn);
 
-        reader_.Seek(static_cast<size_t>(
-            static_cast<int64_t>(meta.offset) + relativeOffset));
+        pos_ = static_cast<size_t>(static_cast<int64_t>(meta.offset) + relativeOffset);
         resultColumns.push_back(ReadColumn(schemaColumn.physical,
                                            static_cast<size_t>(rowCount)));
     }
@@ -215,44 +223,39 @@ Column FormatReader::ReadColumn(Types::PhysicalType physical, size_t rowCount) {
     switch (physical) {
         case Types::PhysicalType::INT16: {
             std::vector<int16_t> values(rowCount);
-            if (!values.empty()) {
-                reader_.Read(values.data(), values.size() * sizeof(values[0]));
-            }
+            if (!values.empty())
+                ReadBytes(values.data(), values.size() * sizeof(values[0]));
             return Column(std::move(values), physical);
         }
         case Types::PhysicalType::INT32: {
             std::vector<int32_t> values(rowCount);
-            if (!values.empty()) {
-                reader_.Read(values.data(), values.size() * sizeof(values[0]));
-            }
+            if (!values.empty())
+                ReadBytes(values.data(), values.size() * sizeof(values[0]));
             return Column(std::move(values), physical);
         }
         case Types::PhysicalType::INT64: {
             std::vector<int64_t> values(rowCount);
-            if (!values.empty()) {
-                reader_.Read(values.data(), values.size() * sizeof(values[0]));
-            }
+            if (!values.empty())
+                ReadBytes(values.data(), values.size() * sizeof(values[0]));
             return Column(std::move(values), physical);
         }
         case Types::PhysicalType::INT128: {
             std::vector<Int128> values(rowCount);
-            if (!values.empty()) {
-                reader_.Read(values.data(), values.size() * sizeof(values[0]));
-            }
+            if (!values.empty())
+                ReadBytes(values.data(), values.size() * sizeof(values[0]));
             return Column(std::move(values), physical);
         }
         case Types::PhysicalType::BOOL: {
             std::vector<uint8_t> values(rowCount);
-            if (!values.empty()) {
-                reader_.Read(values.data(), values.size() * sizeof(values[0]));
-            }
+            if (!values.empty())
+                ReadBytes(values.data(), values.size() * sizeof(values[0]));
             return Column(std::move(values), physical);
         }
         case Types::PhysicalType::STRING: {
             std::vector<std::string> values;
             values.reserve(rowCount);
             for (size_t i = 0; i < rowCount; ++i) {
-                values.push_back(reader_.ReadString());
+                values.push_back(ReadString());
             }
             return Column(std::move(values), physical);
         }

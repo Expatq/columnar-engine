@@ -1,6 +1,6 @@
 #pragma once
 
-#include <io/binary/binary_io.h>
+#include <io/binary/file_reader.h>
 
 #include <core/row_group.h>
 #include <core/row_group_meta.h>
@@ -36,7 +36,8 @@ public:
     uint32_t GetRowGroupRows(size_t index) const;
 
 private:
-    BinaryReader reader_;
+    FileReader file_;
+    size_t pos_ = 0;
 
     uint32_t columnCount_ = 0;
     uint64_t totalRowCount_ = 0;
@@ -45,6 +46,21 @@ private:
     Schema schema_;
     std::vector<RowGroupMeta> rowGroupMetas_;
     size_t curRowGroupIdx_ = 0;
+
+    template <typename T>
+    T ReadField() {
+        T v;
+        file_.Read(pos_, &v, sizeof(T));
+        pos_ += sizeof(T);
+        return v;
+    }
+
+    void ReadBytes(void* dst, size_t n) {
+        file_.Read(pos_, dst, n);
+        pos_ += n;
+    }
+
+    std::string ReadString();
 
     void ValidateMagic();
     void ReadHeader();
