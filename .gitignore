@@ -57,5 +57,6 @@ build
 .claude
 junk
 data
+src/io/format/lib
 
 columnar-engine-docs
