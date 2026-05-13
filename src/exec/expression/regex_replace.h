@@ -45,7 +45,7 @@ private:
     mutable EvalState inputState_;
 
     // L1: trivial types
-    bool IsTrivial_;
+    bool isTrivial_;
     std::string trivialPattern_;
 
     // L2: literal prefix pre-screening

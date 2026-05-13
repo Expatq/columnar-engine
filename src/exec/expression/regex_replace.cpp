@@ -49,7 +49,7 @@ std::string ExtractLiteralPrefix(const std::string& pattern, bool isAnchored) {
 RegexReplaceExpression::RegexReplaceExpression(std::unique_ptr<IExpression> input, const std::string& pattern, std::string replacement)
     : input_(std::move(input)),
       replacement_(std::move(replacement)),
-      IsTrivial_(IsTrivial(pattern)),
+      isTrivial_(IsTrivial(pattern)),
       isAnchored_(!pattern.empty() && pattern[0] == '^') {
     if (!input_) {
         throw std::invalid_argument("input cannot be null");
@@ -58,7 +58,7 @@ RegexReplaceExpression::RegexReplaceExpression(std::unique_ptr<IExpression> inpu
         throw std::invalid_argument("requires STRING input");
     }
 
-    if (IsTrivial_) {
+    if (isTrivial_) {
         trivialPattern_ = pattern;
         return;
     }
@@ -106,7 +106,7 @@ Types::AnyPhysicalType RegexReplaceExpression::EvaluateScalar(const ExecBatch& i
 }
 
 std::string RegexReplaceExpression::ApplyReplace(const std::string& str) const {
-    if (IsTrivial_) {
+    if (isTrivial_) {
         return TrivialReplace(str);
     }
 
