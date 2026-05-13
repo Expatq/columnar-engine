@@ -7,7 +7,6 @@ add_library(
     logical.cpp
     like.cpp
     date_trunc.cpp
-    literal.cpp
     not_expression.cpp
     string_length.cpp
     case_when.cpp
