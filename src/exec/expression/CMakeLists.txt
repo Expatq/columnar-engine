@@ -25,5 +25,5 @@ target_link_libraries(
     columnar_core
     columnar_exec_core
     columnar_exec_interface
-    re2::
+    re2::re2
 )
