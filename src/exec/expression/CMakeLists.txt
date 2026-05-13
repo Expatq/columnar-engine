@@ -7,8 +7,8 @@ add_library(
     logical.cpp
     like.cpp
     date_trunc.cpp
-    not_expression.cpp
-    string_length.cpp
+    not.cpp
+    string_len.cpp
     case_when.cpp
     regex_replace.cpp
 )
