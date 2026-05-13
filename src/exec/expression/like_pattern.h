@@ -100,7 +100,6 @@ private:
         return states;
     }
 
-    // Bug fixed: loop bound was states.size() (= m+1), accessing pattern_[m] → OOB.
     void VectorClosure(std::vector<uint8_t>& states) const {
         for (size_t i = 0; i < pattern_.size(); ++i)
             if (states[i] && pattern_[i] == '%')
@@ -128,7 +127,6 @@ private:
             if (!activeStates)
                 return false;
         }
-        // Bug fixed: was (activeStates >> str.size()) — accept state is at bit m, not str.size().
         return (activeStates >> m) & 1;
     }
 
