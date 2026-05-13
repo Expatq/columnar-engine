@@ -7,9 +7,11 @@ add_library(
     logical.cpp
     like.cpp
     date_trunc.cpp
-    not.cpp
-    string_len.cpp
+    literal.cpp
+    not_expression.cpp
+    string_length.cpp
     case_when.cpp
+    regex_replace.cpp
 )
 
 target_include_directories(
@@ -24,4 +26,5 @@ target_link_libraries(
     columnar_core
     columnar_exec_core
     columnar_exec_interface
+    re2::
 )
