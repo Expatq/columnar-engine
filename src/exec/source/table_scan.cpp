@@ -1,6 +1,8 @@
 #include "table_scan.h"
+
+#include <util/assert.h>
+
 #include <stdexcept>
-#include "util/assert.h"
 
 namespace Columnar::Exec {
 
@@ -18,25 +20,57 @@ bool TableScan::Next(ExecBatch& out) {
 
     out.Reset();
 
-    std::optional<RowGroup> rowGroup;
-    switch (requiredCols_.GetMode()) {
-        case RequiredColumns::Mode::All:
-            rowGroup = reader_->ReadRowGroup();
-            break;
-        case RequiredColumns::Mode::Names:
-            rowGroup = reader_->ReadRowGroup(requiredCols_.Names());
-            break;
-        case RequiredColumns::Mode::None:
-            throw std::logic_error("cannot produce zero-column batches");
+    while (reader_->HasMore()) {
+        const size_t idx = reader_->CurrentRowGroupIndex();
+        if (ShouldSkip(idx)) {
+            reader_->SkipRowGroup();
+            continue;
+        }
+
+        std::optional<RowGroup> rowGroup;
+        switch (requiredCols_.GetMode()) {
+            case RequiredColumns::Mode::All:
+                rowGroup = reader_->ReadRowGroup();
+                break;
+            case RequiredColumns::Mode::Names:
+                rowGroup = reader_->ReadRowGroup(requiredCols_.Names());
+                break;
+            case RequiredColumns::Mode::None:
+                throw std::logic_error("cannot produce zero-column batches");
+        }
+
+        if (!rowGroup) {
+            return false;
+        }
+
+        out.rowCount = rowGroup->GetRowCount();
+        out.rowGroup = std::make_shared<RowGroup>(std::move(*rowGroup));
+        return true;
     }
 
-    if (!rowGroup) {
+    return false;
+}
+
+void TableScan::AddRangePredicate(size_t colIdx, int64_t lo, int64_t hi) {
+    rangePredicates_.push_back({colIdx, lo, hi});
+}
+
+void TableScan::AddEqualityPredicate(size_t colIdx, int64_t value) {
+    rangePredicates_.push_back({colIdx, value, value});
+}
+
+bool TableScan::ShouldSkip(size_t rgIdx) const {
+    if (rangePredicates_.empty()) {
         return false;
     }
-
-    out.rowCount = rowGroup->GetRowCount();
-    out.rowGroup = std::make_shared<RowGroup>(std::move(*rowGroup));
-    return true;
+    
+    for (const auto& predicate : rangePredicates_) {
+        const ColStats* stats = reader_->GetStats(rgIdx, predicate.colIdx);
+        if (stats && !stats->MayContain(predicate.lo, predicate.hi)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void TableScan::Close() noexcept {

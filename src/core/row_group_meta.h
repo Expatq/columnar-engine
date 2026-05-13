@@ -9,7 +9,7 @@
 namespace Columnar::IO {
 
 struct RowGroupMeta {
-    uint64_t offset = 0;
+    uint64_t offset   = 0;
     uint32_t rowCount = 0;
     absl::InlinedVector<ColStats, 8> colStats{};
 

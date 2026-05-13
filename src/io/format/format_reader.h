@@ -1,10 +1,11 @@
 #pragma once
 
-#include <io/binary/file_reader.h>
-
+#include <core/col_stats.h>
 #include <core/row_group.h>
 #include <core/row_group_meta.h>
 #include <core/schema.h>
+
+#include <io/binary/file_reader.h>
 
 #include <cstdint>
 #include <optional>
@@ -35,18 +36,20 @@ public:
     uint64_t GetTotalRowCount() const;
     uint32_t GetRowGroupRows(size_t index) const;
 
+    size_t CurrentRowGroupIndex() const {
+        return curRowGroupIdx_;
+    }
+    void SkipRowGroup() {
+        ++curRowGroupIdx_;
+    }
+
+    const ColStats* GetStats(size_t rgIdx, size_t colIdx) const {
+        if (allStats_.empty())
+            return nullptr;
+        return &allStats_[rgIdx * columnCount_ + colIdx];
+    }
+
 private:
-    FileReader file_;
-    size_t pos_ = 0;
-
-    uint32_t columnCount_ = 0;
-    uint64_t totalRowCount_ = 0;
-    uint64_t footerOffset_ = 0;
-
-    Schema schema_;
-    std::vector<RowGroupMeta> rowGroupMetas_;
-    size_t curRowGroupIdx_ = 0;
-
     template <typename T>
     T ReadField() {
         T v;
@@ -55,6 +58,7 @@ private:
         return v;
     }
 
+private:
     void ReadBytes(void* dst, size_t n) {
         file_.Read(pos_, dst, n);
         pos_ += n;
@@ -62,19 +66,34 @@ private:
 
     std::string ReadString();
 
+    static size_t EstimateColSize(Types::PhysicalType type, size_t rowCount);
+
     void ValidateMagic();
     void ReadHeader();
     void ReadSchema();
     void ReadFooter();
 
-    std::vector<size_t> ResolveColumnNames(
-        const std::vector<std::string>& colNames) const;
+    std::vector<size_t> ResolveColumnNames(const std::vector<std::string>& colNames) const;
 
     RowGroup ReadAllColumns(const RowGroupMeta& meta);
     RowGroup ReadSelectedColumns(const RowGroupMeta& meta,
                                  const std::vector<size_t>& colIndices);
 
     Column ReadColumn(Types::PhysicalType physical, size_t rowCount);
+
+private:
+    FileReader file_;
+    size_t pos_ = 0;
+
+    uint32_t columnCount_ = 0;
+    uint32_t rgCount_ = 0;
+    uint64_t totalRowCount_ = 0;
+    uint64_t footerOffset_ = 0;
+
+    Schema schema_;
+    std::vector<RowGroupMeta> rowGroupMetas_;
+    std::vector<ColStats> allStats_;
+    size_t curRowGroupIdx_ = 0;
 };
 
 }  // namespace Columnar::IO
