@@ -2,13 +2,14 @@
 
 #include <exec/result_format/row_group_builder.h>
 
+#include <iterator>
 #include <stdexcept>
 
 namespace Columnar::Exec {
 
 MetadataScan::MetadataScan(std::string filepath, std::vector<MetadataColumn> columns)
     : filepath_(std::move(filepath)),
-      columns_(std::move(columns)),
+      columns_(std::make_move_iterator(columns.begin()), std::make_move_iterator(columns.end())),
       produced_(false) {
 }
 

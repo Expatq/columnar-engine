@@ -12,13 +12,13 @@
 #include <iterator>
 #include <numeric>
 #include <stdexcept>
-#include <unordered_set>
+#include <absl/container/flat_hash_set.h>
 
 namespace Columnar::Exec {
 
 LogicalExpression::LogicalExpression(LogicalOp op, std::vector<std::unique_ptr<IExpression>> operands)
     : op_(op),
-      operands_(std::move(operands)) {
+      operands_(std::make_move_iterator(operands.begin()), std::make_move_iterator(operands.end())) {
     if (operands_.size() < 2) {
         throw std::invalid_argument("logical expression needs at least 2 operands");
     }
@@ -38,7 +38,7 @@ Types::LogicalType LogicalExpression::ResultType() const {
 }
 
 std::vector<std::string> LogicalExpression::RequiredColumns() const {
-    std::unordered_set<std::string> reqCols;
+    absl::flat_hash_set<std::string> reqCols;
     for (const auto& expr : operands_) {
         auto cols = expr->RequiredColumns();
         reqCols.insert(std::make_move_iterator(cols.begin()), std::make_move_iterator(cols.end()));

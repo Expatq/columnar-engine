@@ -2,6 +2,9 @@
 
 #include <core/column.h>
 #include <core/schema.h>
+
+#include <absl/container/inlined_vector.h>
+
 #include <optional>
 #include <vector>
 
@@ -10,7 +13,7 @@ namespace Columnar {
 inline constexpr size_t kBatchSize = 2048;
 
 class RowGroup {
-    using const_iterator = std::vector<Column>::const_iterator;
+    using const_iterator = absl::InlinedVector<Column, 8>::const_iterator;
 
 public:
     explicit RowGroup(Schema schema, std::vector<Column> columns);
@@ -41,7 +44,7 @@ private:
 
 private:
     Schema schema_;
-    std::vector<Column> columns_;
+    absl::InlinedVector<Column, 8> columns_;
     size_t rowCount_ = 0;
 };
 

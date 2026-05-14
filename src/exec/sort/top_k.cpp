@@ -8,6 +8,7 @@
 
 #include <util/assert.h>
 
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -16,7 +17,7 @@ namespace Columnar::Exec {
 
 TopK::TopK(std::unique_ptr<IOperator> child, std::vector<SortKey> keys, size_t limit, size_t offset)
     : child_(std::move(child)),
-      keys_(std::move(keys)),
+      keys_(std::make_move_iterator(keys.begin()), std::make_move_iterator(keys.end())),
       limit_(limit),
       offset_(offset) {
     if (!child_ || keys_.empty() || limit_ == 0) {

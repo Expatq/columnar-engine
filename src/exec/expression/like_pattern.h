@@ -2,6 +2,8 @@
 
 #include <util/assert.h>
 
+#include <absl/container/inlined_vector.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -298,7 +300,7 @@ private:
     std::string prefix_;
     std::string suffix_;
 
-    std::vector<BmhSearcher> searchers_;
+    absl::InlinedVector<BmhSearcher, 4> searchers_;
     std::optional<NfaMatcher> nfa_;
 };
 

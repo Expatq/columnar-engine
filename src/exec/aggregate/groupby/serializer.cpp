@@ -6,7 +6,7 @@
 
 namespace Columnar::Exec {
 
-size_t GroupByKeySerializer::PackedSize(const std::vector<GroupByKey>& keyDefs) {
+size_t GroupByKeySerializer::PackedSize(absl::Span<const GroupByKey> keyDefs) {
     size_t total = 0;
     for (const auto& keydef : keyDefs) {
         switch (Types::ToPhysical(keydef.expr->ResultType())) {
@@ -132,7 +132,7 @@ size_t GroupByKeySerializer::Serialize(char* dest, const std::vector<ColumnSpan>
     return static_cast<size_t>(pos - dest);
 }
 
-std::vector<Types::AnyPhysicalType> GroupByKeySerializer::DeserializeInline(std::string_view key, const std::vector<GroupByKey>& keyDefs) {
+std::vector<Types::AnyPhysicalType> GroupByKeySerializer::DeserializeInline(std::string_view key, absl::Span<const GroupByKey> keyDefs) {
     const char* pos = key.data();
     std::vector<Types::AnyPhysicalType> values;
     values.reserve(keyDefs.size());
@@ -187,7 +187,7 @@ std::vector<Types::AnyPhysicalType> GroupByKeySerializer::DeserializeInline(std:
     return values;
 }
 
-std::vector<Types::AnyPhysicalType> GroupByKeySerializer::DeserializePacked(const void* keyData, const std::vector<GroupByKey>& keyDefs) {
+std::vector<Types::AnyPhysicalType> GroupByKeySerializer::DeserializePacked(const void* keyData, absl::Span<const GroupByKey> keyDefs) {
     const char* pos = static_cast<const char*>(keyData);
     std::vector<Types::AnyPhysicalType> values;
     values.reserve(keyDefs.size());

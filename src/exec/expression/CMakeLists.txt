@@ -26,4 +26,6 @@ target_link_libraries(
     columnar_exec_core
     columnar_exec_interface
     re2::re2
+    absl::flat_hash_set
+    absl::inlined_vector
 )

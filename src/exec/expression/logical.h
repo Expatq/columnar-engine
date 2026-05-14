@@ -6,6 +6,8 @@
 
 #include <core/types.h>
 
+#include <absl/container/inlined_vector.h>
+
 #include <memory>
 
 namespace Columnar::Exec {
@@ -29,7 +31,7 @@ private:
     void EvalOr(const ExecBatch& input, SelectionVector& out) const;
 
     LogicalOp op_;
-    std::vector<std::unique_ptr<IExpression>> operands_;
+    absl::InlinedVector<std::unique_ptr<IExpression>, 4> operands_;
 };
 
 }  // namespace Columnar::Exec

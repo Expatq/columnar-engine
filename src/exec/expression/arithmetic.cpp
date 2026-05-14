@@ -4,7 +4,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <type_traits>
-#include <unordered_set>
+#include <absl/container/flat_hash_set.h>
 #include <utility>
 #include "core/types.h"
 #include "exec/core/exec_batch.h"
@@ -30,7 +30,7 @@ Types::LogicalType ArithmeticExpression::ResultType() const {
 }
 
 std::vector<std::string> ArithmeticExpression::RequiredColumns() const {
-    std::unordered_set<std::string> reqCols;
+    absl::flat_hash_set<std::string> reqCols;
     auto colsL = left_->RequiredColumns();
     auto colsR = right_->RequiredColumns();
 

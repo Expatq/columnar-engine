@@ -20,4 +20,7 @@ target_link_libraries(
     columnar_exec_expression
     columnar_exec_result_format
     columnar_exec_aggregate_lib
+    absl::flat_hash_map
+    absl::inlined_vector
+    absl::span
 )

@@ -14,9 +14,11 @@
 #include <core/row_group.h>
 #include <core/types.h>
 
+#include <absl/container/flat_hash_map.h>
+#include <absl/container/inlined_vector.h>
+
 #include <cstdint>
 #include <memory>
-#include <unordered_map>
 
 namespace Columnar::Exec {
 
@@ -41,17 +43,17 @@ private:
     std::vector<AggregateState> MakeInitialStates() const;
 
     std::unique_ptr<IOperator> child_;
-    std::vector<GroupByKey> keys_;
-    std::vector<AggregateSpec> aggregates_;
+    absl::InlinedVector<GroupByKey, 4> keys_;
+    absl::InlinedVector<AggregateSpec, 4> aggregates_;
 
     KeyMode keyMode_;
     KeysArena arena_;
 
-    std::unordered_map<uint64_t, GroupEntry> groupsInt64_;
-    std::unordered_map<Int128, GroupEntry, Int128Hash> groupsInt128_;
-    std::unordered_map<InlineKey, GroupEntry, InlineKeyHash, InlineKeyEq> groupsInline_{0, InlineKeyHash{}, InlineKeyEq{&arena_}};
+    absl::flat_hash_map<uint64_t, GroupEntry> groupsInt64_;
+    absl::flat_hash_map<Int128, GroupEntry, Int128Hash> groupsInt128_;
+    absl::flat_hash_map<InlineKey, GroupEntry, InlineKeyHash, InlineKeyEq> groupsInline_{0, InlineKeyHash{}, InlineKeyEq{&arena_}};
 
-    std::vector<EvalState> keyStates_;
+    absl::InlinedVector<EvalState, 4> keyStates_;
     ExecBatch input_;
     bool produced_ = false;
 };

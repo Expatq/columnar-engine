@@ -8,3 +8,5 @@ add_library(
 )
 
 target_include_directories(columnar_core PUBLIC ${CMAKE_SOURCE_DIR}/src)
+
+target_link_libraries(columnar_core PUBLIC absl::inlined_vector)

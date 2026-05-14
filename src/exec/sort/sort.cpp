@@ -5,6 +5,7 @@
 #include <util/assert.h>
 
 #include <algorithm>
+#include <iterator>
 #include <numeric>
 #include <stdexcept>
 #include "core/row_group.h"
@@ -13,7 +14,7 @@ namespace Columnar::Exec {
 
 Sort::Sort(std::unique_ptr<IOperator> child, std::vector<SortKey> keys)
     : child_(std::move(child)),
-      keys_(std::move(keys)) {
+      keys_(std::make_move_iterator(keys.begin()), std::make_move_iterator(keys.end())) {
     if (!child_ || keys_.empty())
         throw std::invalid_argument("Sort: invalid arguments");
 }
