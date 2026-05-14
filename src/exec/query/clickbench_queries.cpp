@@ -10,57 +10,57 @@
 
 namespace Columnar::Exec {
 
-// Q1: SELECT COUNT(*) FROM hits
-std::unique_ptr<IOperator> BuildQ1(const std::string& path) {
+// Q0: SELECT COUNT(*) FROM hits
+std::unique_ptr<IOperator> BuildQ0(const std::string& path) {
     return std::make_unique<MetadataScan>(
         path,
         std::vector<MetadataColumn>{{MetadataField::TotalRowCount, "count", I64}});
 }
 
-// Q2: SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0
-std::unique_ptr<IOperator> BuildQ2(const std::string& path) {
+// Q1: SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0
+std::unique_ptr<IOperator> BuildQ1(const std::string& path) {
     return Global(
         Where(Scan(path, {"AdvEngineID"}),
               Cmp(ColRef("AdvEngineID", I16), CompareOp::NotEq, Literal(int16_t{0}, I16))),
         Aggs(CountStar("count")));
 }
 
-// Q3: SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits
-std::unique_ptr<IOperator> BuildQ3(const std::string& path) {
+// Q2: SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits
+std::unique_ptr<IOperator> BuildQ2(const std::string& path) {
     return Global(Scan(path, {"AdvEngineID", "ResolutionWidth"}), Aggs(
                                                                       Sum(ColRef("AdvEngineID", I16), "sum_adv_engine_id", I64),
                                                                       CountStar("count"),
                                                                       Avg(ColRef("ResolutionWidth", I16), "avg_resolution_width", I64)));
 }
 
-// Q4: SELECT AVG(UserID) FROM hits
-std::unique_ptr<IOperator> BuildQ4(const std::string& path) {
+// Q3: SELECT AVG(UserID) FROM hits
+std::unique_ptr<IOperator> BuildQ3(const std::string& path) {
     return Global(Scan(path, {"UserID"}),
                   Aggs(Avg(ColRef("UserID", I64), "avg_user_id", I64)));
 }
 
-// Q5: SELECT COUNT(DISTINCT UserID) FROM hits
-std::unique_ptr<IOperator> BuildQ5(const std::string& path) {
+// Q4: SELECT COUNT(DISTINCT UserID) FROM hits
+std::unique_ptr<IOperator> BuildQ4(const std::string& path) {
     return Global(Scan(path, {"UserID"}),
                   Aggs(CountDistinct(ColRef("UserID", I64), "count_distinct_user_id")));
 }
 
-// Q6: SELECT COUNT(DISTINCT SearchPhrase) FROM hits
-std::unique_ptr<IOperator> BuildQ6(const std::string& path) {
+// Q5: SELECT COUNT(DISTINCT SearchPhrase) FROM hits
+std::unique_ptr<IOperator> BuildQ5(const std::string& path) {
     return Global(Scan(path, {"SearchPhrase"}),
                   Aggs(CountDistinct(ColRef("SearchPhrase", Str), "count_distinct_phrase")));
 }
 
-// Q7: SELECT MIN(EventDate), MAX(EventDate) FROM hits
-std::unique_ptr<IOperator> BuildQ7(const std::string& path) {
+// Q6: SELECT MIN(EventDate), MAX(EventDate) FROM hits
+std::unique_ptr<IOperator> BuildQ6(const std::string& path) {
     return Global(Scan(path, {"EventDate"}), Aggs(
                                                  Min(ColRef("EventDate", Date), "min_event_date"),
                                                  Max(ColRef("EventDate", Date), "max_event_date")));
 }
 
-// Q8: SELECT AdvEngineID, COUNT(*) FROM hits WHERE AdvEngineID <> 0
+// Q7: SELECT AdvEngineID, COUNT(*) FROM hits WHERE AdvEngineID <> 0
 //     GROUP BY AdvEngineID ORDER BY COUNT(*) DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ8(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ7(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"AdvEngineID"}),
@@ -70,9 +70,9 @@ std::unique_ptr<IOperator> BuildQ8(const std::string& path) {
         SortBy(Desc(ColRef("count", I64))), 10);
 }
 
-// Q9: SELECT RegionID, COUNT(DISTINCT UserID) AS u FROM hits
+// Q8: SELECT RegionID, COUNT(DISTINCT UserID) AS u FROM hits
 //     GROUP BY RegionID ORDER BY u DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ9(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ8(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"RegionID", "UserID"}),
                 Keys(Key(ColRef("RegionID", I32), "RegionID")),
@@ -80,9 +80,9 @@ std::unique_ptr<IOperator> BuildQ9(const std::string& path) {
         SortBy(Desc(ColRef("u", I64))), 10);
 }
 
-// Q10: SELECT RegionID, SUM(AdvEngineID), COUNT(*) AS c, AVG(ResolutionWidth), COUNT(DISTINCT UserID)
+// Q9: SELECT RegionID, SUM(AdvEngineID), COUNT(*) AS c, AVG(ResolutionWidth), COUNT(DISTINCT UserID)
 //      FROM hits GROUP BY RegionID ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ10(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ9(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"RegionID", "AdvEngineID", "ResolutionWidth", "UserID"}),
                 Keys(Key(ColRef("RegionID", I32), "RegionID")),
@@ -94,9 +94,9 @@ std::unique_ptr<IOperator> BuildQ10(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q11: SELECT MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits
+// Q10: SELECT MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits
 //      WHERE MobilePhoneModel != '' GROUP BY MobilePhoneModel ORDER BY u DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ11(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ10(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"MobilePhoneModel", "UserID"}),
@@ -106,9 +106,9 @@ std::unique_ptr<IOperator> BuildQ11(const std::string& path) {
         SortBy(Desc(ColRef("u", I64))), 10);
 }
 
-// Q12: SELECT MobilePhone, MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits
+// Q11: SELECT MobilePhone, MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits
 //      WHERE MobilePhoneModel != '' GROUP BY MobilePhone, MobilePhoneModel ORDER BY u DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ12(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ11(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"MobilePhone", "MobilePhoneModel", "UserID"}),
@@ -120,9 +120,9 @@ std::unique_ptr<IOperator> BuildQ12(const std::string& path) {
         SortBy(Desc(ColRef("u", I64))), 10);
 }
 
-// Q13: SELECT SearchPhrase, COUNT(*) AS c FROM hits
+// Q12: SELECT SearchPhrase, COUNT(*) AS c FROM hits
 //      WHERE SearchPhrase != '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ13(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ12(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"SearchPhrase"}),
@@ -132,9 +132,9 @@ std::unique_ptr<IOperator> BuildQ13(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q14: SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits
+// Q13: SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits
 //      WHERE SearchPhrase != '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ14(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ13(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"SearchPhrase", "UserID"}),
@@ -144,9 +144,9 @@ std::unique_ptr<IOperator> BuildQ14(const std::string& path) {
         SortBy(Desc(ColRef("u", I64))), 10);
 }
 
-// Q15: SELECT SearchEngineID, SearchPhrase, COUNT(*) AS c FROM hits
+// Q14: SELECT SearchEngineID, SearchPhrase, COUNT(*) AS c FROM hits
 //      WHERE SearchPhrase != '' GROUP BY SearchEngineID, SearchPhrase ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ15(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ14(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"SearchEngineID", "SearchPhrase"}),
@@ -158,8 +158,8 @@ std::unique_ptr<IOperator> BuildQ15(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q16: SELECT UserID, COUNT(*) AS c FROM hits GROUP BY UserID ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ16(const std::string& path) {
+// Q15: SELECT UserID, COUNT(*) AS c FROM hits GROUP BY UserID ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ15(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"UserID"}),
                 Keys(Key(ColRef("UserID", I64), "UserID")),
@@ -167,9 +167,9 @@ std::unique_ptr<IOperator> BuildQ16(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q17: SELECT UserID, SearchPhrase, COUNT(*) AS c FROM hits
+// Q16: SELECT UserID, SearchPhrase, COUNT(*) AS c FROM hits
 //      GROUP BY UserID, SearchPhrase ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ17(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ16(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"UserID", "SearchPhrase"}),
                 Keys(
@@ -179,9 +179,9 @@ std::unique_ptr<IOperator> BuildQ17(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q18: SELECT UserID, SearchPhrase, COUNT(*) AS c FROM hits
+// Q17: SELECT UserID, SearchPhrase, COUNT(*) AS c FROM hits
 //      GROUP BY UserID, SearchPhrase ORDER BY c DESC LIMIT 10 OFFSET 1000
-std::unique_ptr<IOperator> BuildQ18(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ17(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"UserID", "SearchPhrase"}),
                 Keys(
@@ -191,9 +191,9 @@ std::unique_ptr<IOperator> BuildQ18(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10, 1000);
 }
 
-// Q19: SELECT UserID, toStartOfMinute(EventTime) AS m, SearchPhrase, COUNT(*) AS c, COUNT(DISTINCT UserID)
+// Q18: SELECT UserID, toStartOfMinute(EventTime) AS m, SearchPhrase, COUNT(*) AS c, COUNT(DISTINCT UserID)
 //      FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ19(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ18(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"UserID", "EventTime", "SearchPhrase"}),
                 Keys(
@@ -206,9 +206,9 @@ std::unique_ptr<IOperator> BuildQ19(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q20: SELECT UserID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth)
+// Q19: SELECT UserID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth)
 //      FROM hits GROUP BY UserID, ClientIP ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ20(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ19(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"UserID", "ClientIP", "IsRefresh", "ResolutionWidth"}),
                 Keys(
@@ -221,17 +221,17 @@ std::unique_ptr<IOperator> BuildQ20(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q21: SELECT count(*) FROM hits WHERE URL LIKE '%google%'
-std::unique_ptr<IOperator> BuildQ21(const std::string& path) {
+// Q20: SELECT count(*) FROM hits WHERE URL LIKE '%google%'
+std::unique_ptr<IOperator> BuildQ20(const std::string& path) {
     return Global(
         Where(Scan(path, {"URL"}), Like(ColRef("URL", Str), "%google%")),
         Aggs(CountStar("count")));
 }
 
-// Q22: SELECT SearchPhrase, min(URL), count(*) AS c
+// Q21: SELECT SearchPhrase, min(URL), count(*) AS c
 //      FROM hits WHERE URL LIKE '%google%' AND SearchPhrase != ''
 //      GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ22(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ21(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"SearchPhrase", "URL"}),
@@ -243,11 +243,11 @@ std::unique_ptr<IOperator> BuildQ22(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q23: SELECT SearchPhrase, min(URL), min(Title), count(*) AS c
+// Q22: SELECT SearchPhrase, min(URL), min(Title), count(*) AS c
 //      FROM hits WHERE Title LIKE '%Google%' AND URL NOT LIKE '%.google.%'
 //              AND SearchPhrase != ''
 //      GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ23(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ22(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"SearchPhrase", "URL", "Title"}),
@@ -262,16 +262,16 @@ std::unique_ptr<IOperator> BuildQ23(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q24: SELECT * FROM hits WHERE URL LIKE '%google%' ORDER BY EventTime LIMIT 10
-std::unique_ptr<IOperator> BuildQ24(const std::string& path) {
+// Q23: SELECT * FROM hits WHERE URL LIKE '%google%' ORDER BY EventTime LIMIT 10
+std::unique_ptr<IOperator> BuildQ23(const std::string& path) {
     return OrderLimit(
         Where(ScanAll(path), Like(ColRef("URL", Str), "%google%")),
         SortBy(Asc(ColRef("EventTime", Ts))), 10);
 }
 
-// Q25: SELECT SearchPhrase, EventTime FROM hits
+// Q24: SELECT SearchPhrase, EventTime FROM hits
 //      WHERE SearchPhrase != '' ORDER BY EventTime LIMIT 10
-std::unique_ptr<IOperator> BuildQ25(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ24(const std::string& path) {
     return OrderLimit(
         Where(Scan(path, {"SearchPhrase", "EventTime"}),
               Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
@@ -279,9 +279,9 @@ std::unique_ptr<IOperator> BuildQ25(const std::string& path) {
         SortBy(Asc(ColRef("EventTime", Ts))), 10);
 }
 
-// Q26: SELECT SearchPhrase FROM hits
+// Q25: SELECT SearchPhrase FROM hits
 //      WHERE SearchPhrase != '' ORDER BY SearchPhrase LIMIT 10
-std::unique_ptr<IOperator> BuildQ26(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ25(const std::string& path) {
     return OrderLimit(
         Where(Scan(path, {"SearchPhrase"}),
               Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
@@ -289,9 +289,9 @@ std::unique_ptr<IOperator> BuildQ26(const std::string& path) {
         SortBy(Asc(ColRef("SearchPhrase", Str))), 10);
 }
 
-// Q27: SELECT SearchPhrase FROM hits
+// Q26: SELECT SearchPhrase FROM hits
 //      WHERE SearchPhrase != '' ORDER BY EventTime, SearchPhrase LIMIT 10
-std::unique_ptr<IOperator> BuildQ27(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ26(const std::string& path) {
     return OrderLimit(
         Where(Scan(path, {"SearchPhrase", "EventTime"}),
               Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
@@ -299,10 +299,10 @@ std::unique_ptr<IOperator> BuildQ27(const std::string& path) {
         SortBy(Asc(ColRef("EventTime", Ts)), Asc(ColRef("SearchPhrase", Str))), 10);
 }
 
-// Q28: SELECT avg(length(URL)) AS l, CounterID
+// Q27: SELECT avg(length(URL)) AS l, CounterID
 //      FROM hits GROUP BY CounterID HAVING count(*) > 100000
 //      ORDER BY l DESC LIMIT 25
-std::unique_ptr<IOperator> BuildQ28(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ27(const std::string& path) {
     return OrderLimit(
         Where(
             GroupBy(
@@ -313,11 +313,11 @@ std::unique_ptr<IOperator> BuildQ28(const std::string& path) {
         SortBy(Desc(ColRef("l", I64))), 25);
 }
 
-// Q29: SELECT REGEXP_REPLACE(Referer, '^https?://(?:www\.)?([^/]+)/.*$', '\1') AS k,
+// Q28: SELECT REGEXP_REPLACE(Referer, '^https?://(?:www\.)?([^/]+)/.*$', '\1') AS k,
 //             avg(length(Referer)) AS l, count(*) AS c, min(Referer)
 //      FROM hits WHERE Referer != ''
 //      GROUP BY k ORDER BY l DESC LIMIT 25
-std::unique_ptr<IOperator> BuildQ29(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ28(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"Referer"}),
@@ -332,26 +332,34 @@ std::unique_ptr<IOperator> BuildQ29(const std::string& path) {
         SortBy(Desc(ColRef("l", I64))), 25);
 }
 
-// Q30: SELECT SUM(ResolutionWidth), SUM(ResolutionWidth+1), ..., SUM(ResolutionWidth+89)
+// Q29: SELECT SUM(ResolutionWidth), SUM(ResolutionWidth+1), ..., SUM(ResolutionWidth+89)
 //      FROM hits
 //
 // SUM(w + n) = SUM(w) + n * COUNT(*) — один проход, два агрегата,
 // остальные 88 значений выводятся скалярным сложением на единственной строке результата.
-std::unique_ptr<IOperator> BuildQ30(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ29(const std::string& path) {
     class ExpandSumsOperator : public IOperator {
     public:
         explicit ExpandSumsOperator(std::unique_ptr<IOperator> child)
-            : child_(std::move(child)) {}
+            : child_(std::move(child)) {
+        }
 
-        void Open() override { child_->Open(); produced_ = false; }
-        void Close() noexcept override { child_->Close(); }
+        void Open() override {
+            child_->Open();
+            produced_ = false;
+        }
+        void Close() noexcept override {
+            child_->Close();
+        }
 
         bool Next(ExecBatch& out) override {
-            if (produced_) return false;
+            if (produced_)
+                return false;
             ExecBatch aggResult;
-            if (!child_->Next(aggResult)) return false;
+            if (!child_->Next(aggResult))
+                return false;
 
-            const int64_t baseSum  = aggResult.rowGroup->FindColumn("base_sum")->GetTypedData<int64_t>()[0];
+            const int64_t baseSum = aggResult.rowGroup->FindColumn("base_sum")->GetTypedData<int64_t>()[0];
             const int64_t rowCount = aggResult.rowGroup->FindColumn("row_count")->GetTypedData<int64_t>()[0];
 
             Schema schema;
@@ -364,7 +372,7 @@ std::unique_ptr<IOperator> BuildQ30(const std::string& path) {
             }
             out.rowGroup = std::make_shared<RowGroup>(std::move(schema), std::move(columns));
             out.rowCount = 1;
-            produced_    = true;
+            produced_ = true;
             return true;
         }
 
@@ -379,10 +387,10 @@ std::unique_ptr<IOperator> BuildQ30(const std::string& path) {
                     CountStar("row_count"))));
 }
 
-// Q31: SELECT SearchEngineID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
+// Q30: SELECT SearchEngineID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
 //      FROM hits WHERE SearchPhrase != ''
 //      GROUP BY SearchEngineID, ClientIP ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ31(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ30(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"SearchEngineID", "ClientIP", "IsRefresh",
@@ -397,10 +405,10 @@ std::unique_ptr<IOperator> BuildQ31(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q32: SELECT WatchID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
+// Q31: SELECT WatchID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
 //      FROM hits WHERE SearchPhrase != ''
 //      GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ32(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ31(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"WatchID", "ClientIP", "IsRefresh",
@@ -415,9 +423,9 @@ std::unique_ptr<IOperator> BuildQ32(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q33: SELECT WatchID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
+// Q32: SELECT WatchID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
 //      FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ33(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ32(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Scan(path, {"WatchID", "ClientIP", "IsRefresh", "ResolutionWidth"}),
@@ -429,8 +437,8 @@ std::unique_ptr<IOperator> BuildQ33(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q34: SELECT URL, count(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ34(const std::string& path) {
+// Q33: SELECT URL, count(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ33(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"URL"}),
                 Keys(Key(ColRef("URL", Str), "URL")),
@@ -438,8 +446,8 @@ std::unique_ptr<IOperator> BuildQ34(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q35: SELECT 1, URL, count(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ35(const std::string& path) {
+// Q34: SELECT 1, URL, count(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ34(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"URL"}),
                 Keys(Key(Literal(int32_t{1}, I32), "one"),
@@ -448,9 +456,9 @@ std::unique_ptr<IOperator> BuildQ35(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q36: SELECT ClientIP, ClientIP-1 AS k1, ClientIP-2 AS k2, ClientIP-3 AS k3, count(*) AS c
+// Q35: SELECT ClientIP, ClientIP-1 AS k1, ClientIP-2 AS k2, ClientIP-3 AS k3, count(*) AS c
 //      FROM hits GROUP BY ClientIP, k1, k2, k3 ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ36(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ35(const std::string& path) {
     return OrderLimit(
         GroupBy(Scan(path, {"ClientIP"}),
                 Keys(Key(ColRef("ClientIP", I32), "ClientIP"),
@@ -467,11 +475,11 @@ std::unique_ptr<IOperator> BuildQ36(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q37: SELECT URL, count(*) AS PageViews FROM hits
+// Q36: SELECT URL, count(*) AS PageViews FROM hits
 //      WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31'
 //        AND URL != ''
 //      GROUP BY URL ORDER BY PageViews DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ37(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ36(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"CounterID", "EventDate", "URL"}),
@@ -488,11 +496,11 @@ std::unique_ptr<IOperator> BuildQ37(const std::string& path) {
         SortBy(Desc(ColRef("PageViews", I64))), 10);
 }
 
-// Q38: SELECT Title, count(*) AS PageViews FROM hits
+// Q37: SELECT Title, count(*) AS PageViews FROM hits
 //      WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31'
 //        AND Title != ''
 //      GROUP BY Title ORDER BY PageViews DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ38(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ37(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"CounterID", "EventDate", "Title"}),
@@ -509,11 +517,11 @@ std::unique_ptr<IOperator> BuildQ38(const std::string& path) {
         SortBy(Desc(ColRef("PageViews", I64))), 10);
 }
 
-// Q39: SELECT URL, count(*) AS PageViews FROM hits
+// Q38: SELECT URL, count(*) AS PageViews FROM hits
 //      WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31'
 //        AND IsLink != 0 AND IsDownload = 0 AND URL != ''
 //      GROUP BY URL ORDER BY PageViews DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ39(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ38(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"CounterID", "EventDate", "IsLink", "IsDownload", "URL"}),
@@ -534,12 +542,12 @@ std::unique_ptr<IOperator> BuildQ39(const std::string& path) {
         SortBy(Desc(ColRef("PageViews", I64))), 10);
 }
 
-// Q40: SELECT TraficSourceID, SearchEngineID, AdvEngineID,
+// Q39: SELECT TraficSourceID, SearchEngineID, AdvEngineID,
 //             CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN Referer ELSE '·' END AS Src,
 //             URL AS Dst, count(*) AS PageViews
 //      FROM hits GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, URL
 //      ORDER BY PageViews DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ40(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ39(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Scan(path, {"TraficSourceID", "SearchEngineID", "AdvEngineID", "Referer", "URL"}),
@@ -559,10 +567,10 @@ std::unique_ptr<IOperator> BuildQ40(const std::string& path) {
         SortBy(Desc(ColRef("PageViews", I64))), 10);
 }
 
-// Q41: SELECT TraficSourceID, count(*) AS c FROM hits
+// Q40: SELECT TraficSourceID, count(*) AS c FROM hits
 //      WHERE TraficSourceID IN (-1, 6)
 //      GROUP BY TraficSourceID ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ41(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ40(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"TraficSourceID"}),
@@ -575,10 +583,10 @@ std::unique_ptr<IOperator> BuildQ41(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q42: SELECT WindowClientWidth, URLHash, count(*) AS c FROM hits
+// Q41: SELECT WindowClientWidth, URLHash, count(*) AS c FROM hits
 //      WHERE CounterID = 62
 //      GROUP BY WindowClientWidth, URLHash ORDER BY c DESC LIMIT 10
-std::unique_ptr<IOperator> BuildQ42(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ41(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"CounterID", "WindowClientWidth", "URLHash"}),
@@ -590,10 +598,10 @@ std::unique_ptr<IOperator> BuildQ42(const std::string& path) {
         SortBy(Desc(ColRef("c", I64))), 10);
 }
 
-// Q43: SELECT toStartOfMinute(EventTime) AS M, count(*) AS c FROM hits
+// Q42: SELECT toStartOfMinute(EventTime) AS M, count(*) AS c FROM hits
 //      WHERE EventDate >= '2014-01-01' AND EventDate <= '2014-01-31'
 //      GROUP BY M ORDER BY M LIMIT 10
-std::unique_ptr<IOperator> BuildQ43(const std::string& path) {
+std::unique_ptr<IOperator> BuildQ42(const std::string& path) {
     return OrderLimit(
         GroupBy(
             Where(Scan(path, {"EventTime", "EventDate"}),

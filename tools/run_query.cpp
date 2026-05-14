@@ -12,53 +12,61 @@
 
 namespace {
 
+using Builder = std::unique_ptr<Columnar::Exec::IOperator> (*)(const std::string&);
+
+constexpr Builder kBuilders[] = {
+    &Columnar::Exec::BuildQ0,
+    &Columnar::Exec::BuildQ1,
+    &Columnar::Exec::BuildQ2,
+    &Columnar::Exec::BuildQ3,
+    &Columnar::Exec::BuildQ4,
+    &Columnar::Exec::BuildQ5,
+    &Columnar::Exec::BuildQ6,
+    &Columnar::Exec::BuildQ7,
+    &Columnar::Exec::BuildQ8,
+    &Columnar::Exec::BuildQ9,
+    &Columnar::Exec::BuildQ10,
+    &Columnar::Exec::BuildQ11,
+    &Columnar::Exec::BuildQ12,
+    &Columnar::Exec::BuildQ13,
+    &Columnar::Exec::BuildQ14,
+    &Columnar::Exec::BuildQ15,
+    &Columnar::Exec::BuildQ16,
+    &Columnar::Exec::BuildQ17,
+    &Columnar::Exec::BuildQ18,
+    &Columnar::Exec::BuildQ19,
+    &Columnar::Exec::BuildQ20,
+    &Columnar::Exec::BuildQ21,
+    &Columnar::Exec::BuildQ22,
+    &Columnar::Exec::BuildQ23,
+    &Columnar::Exec::BuildQ24,
+    &Columnar::Exec::BuildQ25,
+    &Columnar::Exec::BuildQ26,
+    &Columnar::Exec::BuildQ27,
+    &Columnar::Exec::BuildQ28,
+    &Columnar::Exec::BuildQ29,
+    &Columnar::Exec::BuildQ30,
+    &Columnar::Exec::BuildQ31,
+    &Columnar::Exec::BuildQ32,
+    &Columnar::Exec::BuildQ33,
+    &Columnar::Exec::BuildQ34,
+    &Columnar::Exec::BuildQ35,
+    &Columnar::Exec::BuildQ36,
+    &Columnar::Exec::BuildQ37,
+    &Columnar::Exec::BuildQ38,
+    &Columnar::Exec::BuildQ39,
+    &Columnar::Exec::BuildQ40,
+    &Columnar::Exec::BuildQ41,
+    &Columnar::Exec::BuildQ42,
+};
+
 std::unique_ptr<Columnar::Exec::IOperator> BuildQuery(
     const std::string& path, int queryId) {
-    switch (queryId) {
-        case 1:
-            return Columnar::Exec::BuildQ1(path);
-        case 2:
-            return Columnar::Exec::BuildQ2(path);
-        case 3:
-            return Columnar::Exec::BuildQ3(path);
-        case 4:
-            return Columnar::Exec::BuildQ4(path);
-        case 5:
-            return Columnar::Exec::BuildQ5(path);
-        case 6:
-            return Columnar::Exec::BuildQ6(path);
-        case 7:
-            return Columnar::Exec::BuildQ7(path);
-        case 8:
-            return Columnar::Exec::BuildQ8(path);
-        case 9:
-            return Columnar::Exec::BuildQ9(path);
-        case 10:
-            return Columnar::Exec::BuildQ10(path);
-        case 11:
-            return Columnar::Exec::BuildQ11(path);
-        case 12:
-            return Columnar::Exec::BuildQ12(path);
-        case 13:
-            return Columnar::Exec::BuildQ13(path);
-        case 14:
-            return Columnar::Exec::BuildQ14(path);
-        case 15:
-            return Columnar::Exec::BuildQ15(path);
-        case 16:
-            return Columnar::Exec::BuildQ16(path);
-        case 17:
-            return Columnar::Exec::BuildQ17(path);
-        case 18:
-            return Columnar::Exec::BuildQ18(path);
-        case 19:
-            return Columnar::Exec::BuildQ19(path);
-        case 20:
-            return Columnar::Exec::BuildQ20(path);
-        default:
-            throw std::invalid_argument("unsupported query id: " +
-                                        std::to_string(queryId));
+    if (queryId < 0 || queryId >= static_cast<int>(std::size(kBuilders))) {
+        throw std::invalid_argument("unsupported query id: " +
+                                    std::to_string(queryId));
     }
+    return kBuilders[queryId](path);
 }
 
 void PrintRowGroup(const Columnar::RowGroup& rg) {
@@ -86,7 +94,7 @@ void PrintRowGroup(const Columnar::RowGroup& rg) {
 
 int main(int argc, char** argv) {
     if (argc != 3) {
-        std::cerr << "usage: run_query <file.iyx> <query_id>\n";
+        std::cerr << "usage: run_query <file.iyx> <query_id 0..42>\n";
         return EXIT_FAILURE;
     }
 
