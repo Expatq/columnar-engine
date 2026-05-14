@@ -7,6 +7,7 @@
 
 namespace Columnar::Exec {
 
+std::unique_ptr<IOperator> BuildQ0(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ1(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ2(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ3(const std::string& iyxPath);
@@ -49,6 +50,5 @@ std::unique_ptr<IOperator> BuildQ39(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ40(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ41(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ42(const std::string& iyxPath);
-std::unique_ptr<IOperator> BuildQ43(const std::string& iyxPath);
 
 }  // namespace Columnar::Exec
