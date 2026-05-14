@@ -1,20 +1,21 @@
 #pragma once
 
+#include <util/int128.h>
+
 #include <cstdint>
-#include <limits>
 
 namespace Columnar {
 
-struct ColStats {
-    static constexpr int64_t kNoMin = std::numeric_limits<int64_t>::min();
-    static constexpr int64_t kNoMax = std::numeric_limits<int64_t>::max();
+static constexpr Int128 kInt128Max = (Int128)(((UInt128) ~(UInt128)0) >> 1);
+static constexpr Int128 kInt128Min = -kInt128Max - 1;
 
-    int64_t minVal = kNoMin;
-    int64_t maxVal = kNoMax;
-    uint64_t nullCount = 0;  // TODO: support nulls
+struct ColStats {
+    Int128 minVal = kInt128Max;
+    Int128 maxVal = kInt128Min;
+    uint64_t nullCount = 0; // TODO: support null type
 
     bool MayContain(int64_t lo, int64_t hi) const {
-        return maxVal >= lo && minVal <= hi;
+        return static_cast<Int128>(lo) <= maxVal && static_cast<Int128>(hi) >= minVal;
     }
 
     bool MayEqual(int64_t value) const {

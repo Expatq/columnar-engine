@@ -5,6 +5,7 @@
 #include <util/assert.h>
 
 #include <iterator>
+#include <utility>
 
 namespace Columnar {
 

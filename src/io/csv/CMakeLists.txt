@@ -6,4 +6,4 @@ add_library(
 )
 
 target_include_directories(csv_io PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(csv_io PUBLIC binary_io)
+target_link_libraries(csv_io PUBLIC columnar_parser columnar_core)
