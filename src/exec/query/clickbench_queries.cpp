@@ -3,6 +3,11 @@
 
 #include <exec/source/metadata_scan.h>
 
+#include <core/column.h>
+#include <core/row_group.h>
+#include <core/schema.h>
+#include <core/types.h>
+
 namespace Columnar::Exec {
 
 // Q1: SELECT COUNT(*) FROM hits
@@ -214,6 +219,391 @@ std::unique_ptr<IOperator> BuildQ20(const std::string& path) {
                     Sum(ColRef("IsRefresh", I16), "sum_refresh", I64),
                     Avg(ColRef("ResolutionWidth", I16), "avg_width", I64))),
         SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q21: SELECT count(*) FROM hits WHERE URL LIKE '%google%'
+std::unique_ptr<IOperator> BuildQ21(const std::string& path) {
+    return Global(
+        Where(Scan(path, {"URL"}), Like(ColRef("URL", Str), "%google%")),
+        Aggs(CountStar("count")));
+}
+
+// Q22: SELECT SearchPhrase, min(URL), count(*) AS c
+//      FROM hits WHERE URL LIKE '%google%' AND SearchPhrase != ''
+//      GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ22(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"SearchPhrase", "URL"}),
+                  And(Like(ColRef("URL", Str), "%google%"),
+                      Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
+                          Literal(std::string{""}, Str)))),
+            Keys(Key(ColRef("SearchPhrase", Str), "SearchPhrase")),
+            Aggs(Min(ColRef("URL", Str), "min_url"), CountStar("c"))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q23: SELECT SearchPhrase, min(URL), min(Title), count(*) AS c
+//      FROM hits WHERE Title LIKE '%Google%' AND URL NOT LIKE '%.google.%'
+//              AND SearchPhrase != ''
+//      GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ23(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"SearchPhrase", "URL", "Title"}),
+                  And(Like(ColRef("Title", Str), "%Google%"),
+                      Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
+                          Literal(std::string{""}, Str)),
+                      Not(Like(ColRef("URL", Str), "%.google.%")))),
+            Keys(Key(ColRef("SearchPhrase", Str), "SearchPhrase")),
+            Aggs(Min(ColRef("URL", Str), "min_url"),
+                 Min(ColRef("Title", Str), "min_title"),
+                 CountStar("c"))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q24: SELECT * FROM hits WHERE URL LIKE '%google%' ORDER BY EventTime LIMIT 10
+std::unique_ptr<IOperator> BuildQ24(const std::string& path) {
+    return OrderLimit(
+        Where(ScanAll(path), Like(ColRef("URL", Str), "%google%")),
+        SortBy(Asc(ColRef("EventTime", Ts))), 10);
+}
+
+// Q25: SELECT SearchPhrase, EventTime FROM hits
+//      WHERE SearchPhrase != '' ORDER BY EventTime LIMIT 10
+std::unique_ptr<IOperator> BuildQ25(const std::string& path) {
+    return OrderLimit(
+        Where(Scan(path, {"SearchPhrase", "EventTime"}),
+              Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
+                  Literal(std::string{""}, Str))),
+        SortBy(Asc(ColRef("EventTime", Ts))), 10);
+}
+
+// Q26: SELECT SearchPhrase FROM hits
+//      WHERE SearchPhrase != '' ORDER BY SearchPhrase LIMIT 10
+std::unique_ptr<IOperator> BuildQ26(const std::string& path) {
+    return OrderLimit(
+        Where(Scan(path, {"SearchPhrase"}),
+              Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
+                  Literal(std::string{""}, Str))),
+        SortBy(Asc(ColRef("SearchPhrase", Str))), 10);
+}
+
+// Q27: SELECT SearchPhrase FROM hits
+//      WHERE SearchPhrase != '' ORDER BY EventTime, SearchPhrase LIMIT 10
+std::unique_ptr<IOperator> BuildQ27(const std::string& path) {
+    return OrderLimit(
+        Where(Scan(path, {"SearchPhrase", "EventTime"}),
+              Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
+                  Literal(std::string{""}, Str))),
+        SortBy(Asc(ColRef("EventTime", Ts)), Asc(ColRef("SearchPhrase", Str))), 10);
+}
+
+// Q28: SELECT avg(length(URL)) AS l, CounterID
+//      FROM hits GROUP BY CounterID HAVING count(*) > 100000
+//      ORDER BY l DESC LIMIT 25
+std::unique_ptr<IOperator> BuildQ28(const std::string& path) {
+    return OrderLimit(
+        Where(
+            GroupBy(
+                Scan(path, {"CounterID", "URL"}),
+                Keys(Key(ColRef("CounterID", I32), "CounterID")),
+                Aggs(Avg(StrLen(ColRef("URL", Str)), "l", I64), CountStar("cnt"))),
+            Cmp(ColRef("cnt", I64), CompareOp::Gt, Literal(int64_t{100000}, I64))),
+        SortBy(Desc(ColRef("l", I64))), 25);
+}
+
+// Q29: SELECT REGEXP_REPLACE(Referer, '^https?://(?:www\.)?([^/]+)/.*$', '\1') AS k,
+//             avg(length(Referer)) AS l, count(*) AS c, min(Referer)
+//      FROM hits WHERE Referer != ''
+//      GROUP BY k ORDER BY l DESC LIMIT 25
+std::unique_ptr<IOperator> BuildQ29(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"Referer"}),
+                  Cmp(ColRef("Referer", Str), CompareOp::NotEq,
+                      Literal(std::string{""}, Str))),
+            Keys(Key(RegexReplace(ColRef("Referer", Str),
+                                  "^https?://(?:www\\.)?([^/]+)/.*$", "$1"),
+                     "k")),
+            Aggs(Avg(StrLen(ColRef("Referer", Str)), "l", I64),
+                 CountStar("c"),
+                 Min(ColRef("Referer", Str), "min_referer"))),
+        SortBy(Desc(ColRef("l", I64))), 25);
+}
+
+// Q30: SELECT SUM(ResolutionWidth), SUM(ResolutionWidth+1), ..., SUM(ResolutionWidth+89)
+//      FROM hits
+//
+// SUM(w + n) = SUM(w) + n * COUNT(*) — один проход, два агрегата,
+// остальные 88 значений выводятся скалярным сложением на единственной строке результата.
+std::unique_ptr<IOperator> BuildQ30(const std::string& path) {
+    class ExpandSumsOperator : public IOperator {
+    public:
+        explicit ExpandSumsOperator(std::unique_ptr<IOperator> child)
+            : child_(std::move(child)) {}
+
+        void Open() override { child_->Open(); produced_ = false; }
+        void Close() noexcept override { child_->Close(); }
+
+        bool Next(ExecBatch& out) override {
+            if (produced_) return false;
+            ExecBatch aggResult;
+            if (!child_->Next(aggResult)) return false;
+
+            const int64_t baseSum  = aggResult.rowGroup->FindColumn("base_sum")->GetTypedData<int64_t>()[0];
+            const int64_t rowCount = aggResult.rowGroup->FindColumn("row_count")->GetTypedData<int64_t>()[0];
+
+            Schema schema;
+            std::vector<Column> columns;
+            columns.reserve(90);
+            for (int n = 0; n < 90; ++n) {
+                schema.AddColumn("w" + std::to_string(n), Types::LogicalType::INT64);
+                columns.emplace_back(std::vector<int64_t>{baseSum + int64_t(n) * rowCount},
+                                     Types::PhysicalType::INT64);
+            }
+            out.rowGroup = std::make_shared<RowGroup>(std::move(schema), std::move(columns));
+            out.rowCount = 1;
+            produced_    = true;
+            return true;
+        }
+
+    private:
+        std::unique_ptr<IOperator> child_;
+        bool produced_ = false;
+    };
+
+    return std::make_unique<ExpandSumsOperator>(
+        Global(Scan(path, {"ResolutionWidth"}),
+               Aggs(Sum(ColRef("ResolutionWidth", I16), "base_sum", I64),
+                    CountStar("row_count"))));
+}
+
+// Q31: SELECT SearchEngineID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
+//      FROM hits WHERE SearchPhrase != ''
+//      GROUP BY SearchEngineID, ClientIP ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ31(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"SearchEngineID", "ClientIP", "IsRefresh",
+                              "ResolutionWidth", "SearchPhrase"}),
+                  Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
+                      Literal(std::string{""}, Str))),
+            Keys(Key(ColRef("SearchEngineID", I16), "SearchEngineID"),
+                 Key(ColRef("ClientIP", I32), "ClientIP")),
+            Aggs(CountStar("c"),
+                 Sum(ColRef("IsRefresh", I16), "sum_refresh", I64),
+                 Avg(ColRef("ResolutionWidth", I16), "avg_width", I64))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q32: SELECT WatchID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
+//      FROM hits WHERE SearchPhrase != ''
+//      GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ32(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"WatchID", "ClientIP", "IsRefresh",
+                              "ResolutionWidth", "SearchPhrase"}),
+                  Cmp(ColRef("SearchPhrase", Str), CompareOp::NotEq,
+                      Literal(std::string{""}, Str))),
+            Keys(Key(ColRef("WatchID", I64), "WatchID"),
+                 Key(ColRef("ClientIP", I32), "ClientIP")),
+            Aggs(CountStar("c"),
+                 Sum(ColRef("IsRefresh", I16), "sum_refresh", I64),
+                 Avg(ColRef("ResolutionWidth", I16), "avg_width", I64))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q33: SELECT WatchID, ClientIP, count(*) AS c, sum(IsRefresh), avg(ResolutionWidth)
+//      FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ33(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Scan(path, {"WatchID", "ClientIP", "IsRefresh", "ResolutionWidth"}),
+            Keys(Key(ColRef("WatchID", I64), "WatchID"),
+                 Key(ColRef("ClientIP", I32), "ClientIP")),
+            Aggs(CountStar("c"),
+                 Sum(ColRef("IsRefresh", I16), "sum_refresh", I64),
+                 Avg(ColRef("ResolutionWidth", I16), "avg_width", I64))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q34: SELECT URL, count(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ34(const std::string& path) {
+    return OrderLimit(
+        GroupBy(Scan(path, {"URL"}),
+                Keys(Key(ColRef("URL", Str), "URL")),
+                Aggs(CountStar("c"))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q35: SELECT 1, URL, count(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ35(const std::string& path) {
+    return OrderLimit(
+        GroupBy(Scan(path, {"URL"}),
+                Keys(Key(Literal(int32_t{1}, I32), "one"),
+                     Key(ColRef("URL", Str), "URL")),
+                Aggs(CountStar("c"))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q36: SELECT ClientIP, ClientIP-1 AS k1, ClientIP-2 AS k2, ClientIP-3 AS k3, count(*) AS c
+//      FROM hits GROUP BY ClientIP, k1, k2, k3 ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ36(const std::string& path) {
+    return OrderLimit(
+        GroupBy(Scan(path, {"ClientIP"}),
+                Keys(Key(ColRef("ClientIP", I32), "ClientIP"),
+                     Key(Arithm(ColRef("ClientIP", I32), ArithmOp::Sub,
+                                Literal(int32_t{1}, I32)),
+                         "k1"),
+                     Key(Arithm(ColRef("ClientIP", I32), ArithmOp::Sub,
+                                Literal(int32_t{2}, I32)),
+                         "k2"),
+                     Key(Arithm(ColRef("ClientIP", I32), ArithmOp::Sub,
+                                Literal(int32_t{3}, I32)),
+                         "k3")),
+                Aggs(CountStar("c"))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q37: SELECT URL, count(*) AS PageViews FROM hits
+//      WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31'
+//        AND URL != ''
+//      GROUP BY URL ORDER BY PageViews DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ37(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"CounterID", "EventDate", "URL"}),
+                  And(Cmp(ColRef("CounterID", I32), CompareOp::Eq,
+                          Literal(int32_t{62}, I32)),
+                      Cmp(ColRef("EventDate", Date), CompareOp::Gte,
+                          Literal(ParseDate("2013-07-01"), Date)),
+                      Cmp(ColRef("EventDate", Date), CompareOp::Lte,
+                          Literal(ParseDate("2013-07-31"), Date)),
+                      Cmp(ColRef("URL", Str), CompareOp::NotEq,
+                          Literal(std::string{""}, Str)))),
+            Keys(Key(ColRef("URL", Str), "URL")),
+            Aggs(CountStar("PageViews"))),
+        SortBy(Desc(ColRef("PageViews", I64))), 10);
+}
+
+// Q38: SELECT Title, count(*) AS PageViews FROM hits
+//      WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31'
+//        AND Title != ''
+//      GROUP BY Title ORDER BY PageViews DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ38(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"CounterID", "EventDate", "Title"}),
+                  And(Cmp(ColRef("CounterID", I32), CompareOp::Eq,
+                          Literal(int32_t{62}, I32)),
+                      Cmp(ColRef("EventDate", Date), CompareOp::Gte,
+                          Literal(ParseDate("2013-07-01"), Date)),
+                      Cmp(ColRef("EventDate", Date), CompareOp::Lte,
+                          Literal(ParseDate("2013-07-31"), Date)),
+                      Cmp(ColRef("Title", Str), CompareOp::NotEq,
+                          Literal(std::string{""}, Str)))),
+            Keys(Key(ColRef("Title", Str), "Title")),
+            Aggs(CountStar("PageViews"))),
+        SortBy(Desc(ColRef("PageViews", I64))), 10);
+}
+
+// Q39: SELECT URL, count(*) AS PageViews FROM hits
+//      WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31'
+//        AND IsLink != 0 AND IsDownload = 0 AND URL != ''
+//      GROUP BY URL ORDER BY PageViews DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ39(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"CounterID", "EventDate", "IsLink", "IsDownload", "URL"}),
+                  And(Cmp(ColRef("CounterID", I32), CompareOp::Eq,
+                          Literal(int32_t{62}, I32)),
+                      Cmp(ColRef("EventDate", Date), CompareOp::Gte,
+                          Literal(ParseDate("2013-07-01"), Date)),
+                      Cmp(ColRef("EventDate", Date), CompareOp::Lte,
+                          Literal(ParseDate("2013-07-31"), Date)),
+                      Cmp(ColRef("IsLink", Bool), CompareOp::NotEq,
+                          Literal(uint8_t{0}, Bool)),
+                      Cmp(ColRef("IsDownload", Bool), CompareOp::Eq,
+                          Literal(uint8_t{0}, Bool)),
+                      Cmp(ColRef("URL", Str), CompareOp::NotEq,
+                          Literal(std::string{""}, Str)))),
+            Keys(Key(ColRef("URL", Str), "URL")),
+            Aggs(CountStar("PageViews"))),
+        SortBy(Desc(ColRef("PageViews", I64))), 10);
+}
+
+// Q40: SELECT TraficSourceID, SearchEngineID, AdvEngineID,
+//             CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN Referer ELSE '·' END AS Src,
+//             URL AS Dst, count(*) AS PageViews
+//      FROM hits GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, URL
+//      ORDER BY PageViews DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ40(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Scan(path, {"TraficSourceID", "SearchEngineID", "AdvEngineID", "Referer", "URL"}),
+            Keys(Key(ColRef("TraficSourceID", I16), "TraficSourceID"),
+                 Key(ColRef("SearchEngineID", I16), "SearchEngineID"),
+                 Key(ColRef("AdvEngineID", I16), "AdvEngineID"),
+                 Key(CaseWhen(
+                         And(Cmp(ColRef("SearchEngineID", I16), CompareOp::Eq,
+                                 Literal(int16_t{0}, I16)),
+                             Cmp(ColRef("AdvEngineID", I16), CompareOp::Eq,
+                                 Literal(int16_t{0}, I16))),
+                         ColRef("Referer", Str),
+                         Literal(std::string{"\xC2\xB7"}, Str)),
+                     "Src"),
+                 Key(ColRef("URL", Str), "Dst")),
+            Aggs(CountStar("PageViews"))),
+        SortBy(Desc(ColRef("PageViews", I64))), 10);
+}
+
+// Q41: SELECT TraficSourceID, count(*) AS c FROM hits
+//      WHERE TraficSourceID IN (-1, 6)
+//      GROUP BY TraficSourceID ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ41(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"TraficSourceID"}),
+                  Or(Cmp(ColRef("TraficSourceID", I16), CompareOp::Eq,
+                         Literal(int16_t{-1}, I16)),
+                     Cmp(ColRef("TraficSourceID", I16), CompareOp::Eq,
+                         Literal(int16_t{6}, I16)))),
+            Keys(Key(ColRef("TraficSourceID", I16), "TraficSourceID")),
+            Aggs(CountStar("c"))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q42: SELECT WindowClientWidth, URLHash, count(*) AS c FROM hits
+//      WHERE CounterID = 62
+//      GROUP BY WindowClientWidth, URLHash ORDER BY c DESC LIMIT 10
+std::unique_ptr<IOperator> BuildQ42(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"CounterID", "WindowClientWidth", "URLHash"}),
+                  Cmp(ColRef("CounterID", I32), CompareOp::Eq,
+                      Literal(int32_t{62}, I32))),
+            Keys(Key(ColRef("WindowClientWidth", I16), "WindowClientWidth"),
+                 Key(ColRef("URLHash", I64), "URLHash")),
+            Aggs(CountStar("c"))),
+        SortBy(Desc(ColRef("c", I64))), 10);
+}
+
+// Q43: SELECT toStartOfMinute(EventTime) AS M, count(*) AS c FROM hits
+//      WHERE EventDate >= '2014-01-01' AND EventDate <= '2014-01-31'
+//      GROUP BY M ORDER BY M LIMIT 10
+std::unique_ptr<IOperator> BuildQ43(const std::string& path) {
+    return OrderLimit(
+        GroupBy(
+            Where(Scan(path, {"EventTime", "EventDate"}),
+                  And(Cmp(ColRef("EventDate", Date), CompareOp::Gte,
+                          Literal(ParseDate("2014-01-01"), Date)),
+                      Cmp(ColRef("EventDate", Date), CompareOp::Lte,
+                          Literal(ParseDate("2014-01-31"), Date)))),
+            Keys(Key(DateTrunc(ColRef("EventTime", Ts), DateTruncUnit::Minute), "M")),
+            Aggs(CountStar("c"))),
+        SortBy(Asc(ColRef("M", I64))), 10);
 }
 
 }  // namespace Columnar::Exec
