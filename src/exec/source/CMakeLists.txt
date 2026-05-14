@@ -17,4 +17,5 @@ target_link_libraries(
     columnar_io
     columnar_exec_core
     columnar_exec_result_format
+    absl::inlined_vector
 )

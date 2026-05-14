@@ -8,6 +8,8 @@
 
 #include <exec/interface/operator.h>
 
+#include <absl/container/inlined_vector.h>
+
 #include <memory>
 
 namespace Columnar::Exec {
@@ -26,9 +28,9 @@ private:
     RowGroup BuildResult() const;
 
     std::unique_ptr<IOperator> child_;
-    std::vector<AggregateSpec> aggregates_;
-    std::vector<AggregateState> states_;
-    std::vector<EvalState> inputStates_;
+    absl::InlinedVector<AggregateSpec, 4> aggregates_;
+    absl::InlinedVector<AggregateState, 4> states_;
+    absl::InlinedVector<EvalState, 4> inputStates_;
     ExecBatch input_;
     bool produced_ = false;
 };

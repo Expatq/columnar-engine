@@ -18,4 +18,5 @@ target_link_libraries(
     columnar_exec_interface
     columnar_exec_expression
     columnar_exec_result_format
+    absl::flat_hash_set
 )

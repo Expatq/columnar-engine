@@ -16,4 +16,5 @@ target_link_libraries(
     PUBLIC
     columnar_core
     columnar_exec_interface
+    absl::inlined_vector
 )

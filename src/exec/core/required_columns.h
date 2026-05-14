@@ -1,5 +1,7 @@
 #pragma once
 
+#include <absl/container/inlined_vector.h>
+
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,18 +32,18 @@ public:
         return mode_;
     }
 
-    const std::vector<std::string>& Names() const {
+    const absl::InlinedVector<std::string, 8>& Names() const {
         return names_;
     }
 
 private:
     RequiredColumns(Mode mode, std::vector<std::string> names)
         : mode_(mode),
-          names_(std::move(names)) {
+          names_(std::make_move_iterator(names.begin()), std::make_move_iterator(names.end())) {
     }
 
     Mode mode_;
-    std::vector<std::string> names_;
+    absl::InlinedVector<std::string, 8> names_;
 };
 
 }  // namespace Columnar::Exec

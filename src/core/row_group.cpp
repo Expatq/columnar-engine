@@ -4,11 +4,13 @@
 
 #include <util/assert.h>
 
+#include <iterator>
+
 namespace Columnar {
 
 RowGroup::RowGroup(Schema schema, std::vector<Column> columns)
     : schema_(std::move(schema)),
-      columns_(std::move(columns)) {
+      columns_(std::make_move_iterator(columns.begin()), std::make_move_iterator(columns.end())) {
     Validate();
     rowCount_ = columns_.empty() ? 0 : columns_[0].GetRowCount();
 }

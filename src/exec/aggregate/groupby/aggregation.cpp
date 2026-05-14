@@ -74,8 +74,8 @@ void UpdateAggState(const ExecBatch& batch, RowId row, const AggregateSpec& spec
 
 GroupByAggregation::GroupByAggregation(std::unique_ptr<IOperator> child, std::vector<GroupByKey> keys, std::vector<AggregateSpec> aggregates)
     : child_(std::move(child)),
-      keys_(std::move(keys)),
-      aggregates_(std::move(aggregates)),
+      keys_(std::make_move_iterator(keys.begin()), std::make_move_iterator(keys.end())),
+      aggregates_(std::make_move_iterator(aggregates.begin()), std::make_move_iterator(aggregates.end())),
       groupsInline_(0, InlineKeyHash{}, InlineKeyEq{&arena_}),
       produced_(false) {
     if (!child_ || keys_.empty() || aggregates_.empty())

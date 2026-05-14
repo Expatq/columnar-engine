@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <unordered_set>
+#include <absl/container/flat_hash_set.h>
 #include <variant>
 
 namespace Columnar::Exec {
@@ -36,7 +36,7 @@ struct MinMaxState {
 template <typename T>
 struct CountDistinctState {
     using value_type = T;
-    std::unordered_set<T> seen;
+    absl::flat_hash_set<T> seen;
 };
 
 using AggregateState = std::variant<

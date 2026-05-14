@@ -1,7 +1,7 @@
 #include "case_when.h"
 
 #include <stdexcept>
-#include <unordered_set>
+#include <absl/container/flat_hash_set.h>
 #include "core/row_group.h"
 #include "exec/core/selection_vector.h"
 
@@ -56,7 +56,7 @@ Types::LogicalType CaseWhenExpression::ResultType() const {
 }
 
 std::vector<std::string> CaseWhenExpression::RequiredColumns() const {
-    std::unordered_set<std::string> cols;
+    absl::flat_hash_set<std::string> cols;
     for (const auto& c : condition_->RequiredColumns()) cols.insert(c);
     for (const auto& c : then_->RequiredColumns()) cols.insert(c);
     for (const auto& c : else_->RequiredColumns()) cols.insert(c);

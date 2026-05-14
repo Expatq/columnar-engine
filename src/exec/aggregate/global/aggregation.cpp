@@ -21,7 +21,7 @@ namespace Columnar::Exec {
 
 GlobalAggregation::GlobalAggregation(std::unique_ptr<IOperator> child, std::vector<AggregateSpec> aggregates)
     : child_(std::move(child)),
-      aggregates_(std::move(aggregates)) {
+      aggregates_(std::make_move_iterator(aggregates.begin()), std::make_move_iterator(aggregates.end())) {
     if (!child_) {
         throw std::invalid_argument("GlobalAggregation requires child operator");
     }

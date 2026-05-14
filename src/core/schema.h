@@ -2,6 +2,8 @@
 
 #include <core/types.h>
 
+#include <absl/container/inlined_vector.h>
+
 #include <optional>
 #include <string>
 #include <vector>
@@ -20,7 +22,7 @@ struct ColumnSchema {
 
 class Schema {
 public:
-    using const_iterator = std::vector<ColumnSchema>::const_iterator;
+    using const_iterator = absl::InlinedVector<ColumnSchema, 8>::const_iterator;
 
     Schema() = default;
     explicit Schema(std::vector<ColumnSchema> columns);
@@ -42,7 +44,7 @@ public:
     bool operator==(const Schema& other) const = default;
 
 private:
-    std::vector<ColumnSchema> columns_;
+    absl::InlinedVector<ColumnSchema, 8> columns_;
 };
 
 }  // namespace Columnar

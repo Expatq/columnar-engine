@@ -10,6 +10,8 @@
 #include <core/row_group.h>
 #include <core/types.h>
 
+#include <absl/container/inlined_vector.h>
+
 #include <memory>
 #include <vector>
 
@@ -27,19 +29,19 @@ public:
     void Close() noexcept override;
 
 private:
-    using Row = std::vector<Types::AnyPhysicalType>;
+    using Row = absl::InlinedVector<Types::AnyPhysicalType, 8>;
 
     bool IsLess(const Row& first, const Row& second) const;
     void ProcessBatch(const ExecBatch& batch);
     RowGroup BuildOutput() const;
 
     std::unique_ptr<IOperator> child_;
-    std::vector<SortKey> keys_;
+    absl::InlinedVector<SortKey, 4> keys_;
     size_t limit_;
     size_t offset_;
 
     Schema schema_;
-    std::vector<size_t> keyColIndices_;
+    absl::InlinedVector<size_t, 4> keyColIndices_;
     std::vector<Row> heap_;
     bool produced_ = false;
     ExecBatch input_;

@@ -9,4 +9,5 @@ target_link_libraries(columnar_exec_sort
     columnar_exec_interface
     columnar_exec_result_format
     columnar_util
+    absl::inlined_vector
 )

@@ -2,6 +2,9 @@
 
 #include <exec/interface/operator.h>
 #include <io/format/format_reader.h>
+
+#include <absl/container/inlined_vector.h>
+
 #include <optional>
 #include "core/types.h"
 
@@ -36,7 +39,7 @@ private:
     int64_t ReadMetaField(MetadataField field) const; // TODO: support fields other than INT64
 
     std::string filepath_;
-    std::vector<MetadataColumn> columns_;
+    absl::InlinedVector<MetadataColumn, 4> columns_;
     std::optional<IO::FormatReader> reader_;
     bool produced_;
 };

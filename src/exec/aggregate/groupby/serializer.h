@@ -3,6 +3,9 @@
 #include "inline_key.h"
 
 #include <exec/interface/expression.h>
+
+#include <absl/types/span.h>
+
 #include <string_view>
 
 namespace Columnar::Exec {
@@ -15,7 +18,7 @@ struct GroupByKey {
 struct GroupByKeySerializer {
     static constexpr size_t kMaxKeyBytes = 512;
 
-    static size_t PackedSize(const std::vector<GroupByKey>& keyDefs);
+    static size_t PackedSize(absl::Span<const GroupByKey> keyDefs);
 
     static uint64_t PackInt64(const std::vector<ColumnSpan>& keyCols, size_t idx);
     static Int128 PackInt128(const std::vector<ColumnSpan>& keyCols, size_t idx);
@@ -29,8 +32,8 @@ struct GroupByKeySerializer {
     */
     static size_t Serialize(char* dest, const std::vector<ColumnSpan>& keyCols, size_t idx);
 
-    static std::vector<Types::AnyPhysicalType> DeserializeInline(std::string_view key, const std::vector<GroupByKey>& keyDefs);
-    static std::vector<Types::AnyPhysicalType> DeserializePacked(const void* keyData, const std::vector<GroupByKey>& keyDefs);
+    static std::vector<Types::AnyPhysicalType> DeserializeInline(std::string_view key, absl::Span<const GroupByKey> keyDefs);
+    static std::vector<Types::AnyPhysicalType> DeserializePacked(const void* keyData, absl::Span<const GroupByKey> keyDefs);
 };
 
 }  // namespace Columnar::Exec

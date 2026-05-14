@@ -8,6 +8,8 @@
 #include <core/schema.h>
 #include <core/types.h>
 
+#include <absl/container/inlined_vector.h>
+
 #include <memory>
 #include <vector>
 
@@ -28,11 +30,11 @@ private:
     RowGroup BuildOutput(const std::vector<size_t>& rowIndices) const;
 
     std::unique_ptr<IOperator> child_;
-    std::vector<SortKey> keys_;
+    absl::InlinedVector<SortKey, 4> keys_;
 
     Schema schema_;
     std::vector<Types::AnyColumnData> columns_;
-    std::vector<size_t> keyColIndices_;
+    absl::InlinedVector<size_t, 4> keyColIndices_;
     size_t rowCount_ = 0;
 
     bool produced_ = false;

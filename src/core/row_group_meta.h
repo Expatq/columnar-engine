@@ -2,15 +2,16 @@
 
 #include "col_stats.h"
 
+#include <absl/container/inlined_vector.h>
+
 #include <cstdint>
-#include <vector>
 
 namespace Columnar::IO {
 
 struct RowGroupMeta {
     uint64_t offset = 0;
     uint32_t rowCount = 0;
-    std::vector<ColStats> colStats{};
+    absl::InlinedVector<ColStats, 8> colStats{};
 
     bool HasColStats() const {
         return !colStats.empty();
