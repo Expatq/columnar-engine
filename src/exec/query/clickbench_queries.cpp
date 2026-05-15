@@ -666,9 +666,9 @@ std::unique_ptr<IOperator> BuildQ42(const std::string& path) {
         SortBy(Asc(ColRef("M", I64))), 10);
 }
 
-std::unique_ptr<IOperator> BuildClickBenchQuery(const std::string& iyxPath,
-                                                size_t queryId) {
-    if (queryId >= kClickBenchQueryCount || queryId < 0) {
+std::unique_ptr<IOperator> BuildQuery(const std::string& iyxPath,
+                                      size_t queryId) {
+    if (queryId >= kClickBenchQueryCount) {
         throw std::out_of_range("ClickBench query id is out of range: " +
                                 std::to_string(queryId));
     }
