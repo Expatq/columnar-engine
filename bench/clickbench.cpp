@@ -397,6 +397,10 @@ int main(int argc, char** argv) {
             } else {
                 medianTimesMs.push_back(-1);
             }
+
+            std::cout << 'q' << queryId << ": " << medianTimesMs.back()
+                      << " ms\n"
+                      << std::flush;
         }
 
         WriteMainTimings(options.timingsPath, medianTimesMs);
