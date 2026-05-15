@@ -7,6 +7,8 @@
 
 namespace Columnar::Exec {
 
+static constexpr size_t kClickBenchQueryCount = 43;
+
 std::unique_ptr<IOperator> BuildQ0(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ1(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ2(const std::string& iyxPath);
@@ -50,5 +52,7 @@ std::unique_ptr<IOperator> BuildQ39(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ40(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ41(const std::string& iyxPath);
 std::unique_ptr<IOperator> BuildQ42(const std::string& iyxPath);
+
+std::unique_ptr<IOperator> BuildQuery(const std::string& iyxPath, size_t queryId);
 
 }  // namespace Columnar::Exec
