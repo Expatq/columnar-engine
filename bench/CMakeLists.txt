@@ -7,7 +7,7 @@ target_link_libraries(roundtrip_bench
     columnar_util
 )
 
-add_executable(clickbench_bench clickbench_bench.cpp)
+add_executable(clickbench_bench clickbench.cpp)
 
 target_link_libraries(clickbench_bench
     PRIVATE
