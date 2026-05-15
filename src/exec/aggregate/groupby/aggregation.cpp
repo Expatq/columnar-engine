@@ -14,6 +14,8 @@
 
 #include <util/assert.h>
 
+#include <string>
+
 namespace Columnar::Exec {
 
 namespace {
@@ -134,7 +136,6 @@ void GroupByAggregation::Consume(const ExecBatch& batch) {
 
     const size_t activeCount = batch.has_selection ? batch.selection.Size() : batch.rowCount;
 
-    alignas(8) char keyBuf[GroupByKeySerializer::kMaxKeyBytes];
     for (size_t idx = 0; idx < activeCount; ++idx) {
         const RowId physRow = batch.has_selection ? batch.selection.Rows()[idx] : idx;
 
@@ -159,9 +160,10 @@ void GroupByAggregation::Consume(const ExecBatch& batch) {
                 break;
             }
             case KeyMode::Inline: {
-                const size_t keyLen = GroupByKeySerializer::Serialize(keyBuf, keyCols, idx);
+                const std::string keyBuf = GroupByKeySerializer::Serialize(keyCols, idx);
+                const size_t keyLen = keyBuf.size();
                 const uint32_t savedPos = arena_.pos;
-                const InlineKey key = GroupByKeySerializer::MakeInlineKey(keyBuf, keyLen, &arena_);
+                const InlineKey key = GroupByKeySerializer::MakeInlineKey(keyBuf.data(), keyLen, &arena_);
 
                 auto it = groupsInline_.find(key);
                 if (it == groupsInline_.end()) {

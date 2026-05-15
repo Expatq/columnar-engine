@@ -4,6 +4,9 @@
 #include "exec/aggregate/groupby/inline_key.h"
 #include "util/int128.h"
 
+#include <limits>
+#include <stdexcept>
+
 namespace Columnar::Exec {
 
 size_t GroupByKeySerializer::PackedSize(absl::Span<const GroupByKey> keyDefs) {
@@ -106,30 +109,29 @@ InlineKey GroupByKeySerializer::MakeInlineKey(const char* data, size_t len, Keys
     return key;
 }
 
-size_t GroupByKeySerializer::Serialize(char* dest, const std::vector<ColumnSpan>& keyCols, size_t idx) {
-    char* pos = dest;
+std::string GroupByKeySerializer::Serialize(const std::vector<ColumnSpan>& keyCols, size_t idx) {
+    std::string out;
     for (const auto& col : keyCols) {
         std::visit(Types::overloaded{
                        [&](std::span<const std::string> span) {
+                           if (span[idx].size() > std::numeric_limits<uint32_t>::max()) {
+                               throw std::length_error("group-by string key is too large");
+                           }
                            const uint32_t len = static_cast<uint32_t>(span[idx].size());
-                           std::memcpy(pos, &len, sizeof(len));
-                           pos += sizeof(len);
-                           std::memcpy(pos, span[idx].data(), len);
-                           pos += len;
+                           out.append(reinterpret_cast<const char*>(&len), sizeof(len));
+                           out.append(span[idx].data(), len);
                        },
                        [&](std::span<const Int128> span) {
-                           std::memcpy(pos, &span[idx], sizeof(span[idx]));
-                           pos += sizeof(span[idx]);
+                           out.append(reinterpret_cast<const char*>(&span[idx]), sizeof(span[idx]));
                        },
                        [&]<typename T>(std::span<const T> span) {
                            const int64_t v = static_cast<int64_t>(span[idx]);
-                           std::memcpy(pos, &v, sizeof(v));
-                           pos += sizeof(v);
+                           out.append(reinterpret_cast<const char*>(&v), sizeof(v));
                        },
                    },
                    col);
     }
-    return static_cast<size_t>(pos - dest);
+    return out;
 }
 
 std::vector<Types::AnyPhysicalType> GroupByKeySerializer::DeserializeInline(std::string_view key, absl::Span<const GroupByKey> keyDefs) {

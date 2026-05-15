@@ -6,6 +6,7 @@
 
 #include <absl/types/span.h>
 
+#include <string>
 #include <string_view>
 
 namespace Columnar::Exec {
@@ -27,10 +28,9 @@ struct GroupByKeySerializer {
 
     /*
     Serializes cell at 'idx' in each of key columns and stores it in dest
-    You should externally ensure that dest has enough capacity (>= kMaxKeyBytes)
     Returns total bytes written
     */
-    static size_t Serialize(char* dest, const std::vector<ColumnSpan>& keyCols, size_t idx);
+    static std::string Serialize(const std::vector<ColumnSpan>& keyCols, size_t idx);
 
     static std::vector<Types::AnyPhysicalType> DeserializeInline(std::string_view key, absl::Span<const GroupByKey> keyDefs);
     static std::vector<Types::AnyPhysicalType> DeserializePacked(const void* keyData, absl::Span<const GroupByKey> keyDefs);
