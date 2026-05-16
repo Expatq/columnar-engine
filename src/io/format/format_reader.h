@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -26,7 +27,7 @@ public:
     FormatReader& operator=(FormatReader&&) noexcept = default;
 
     std::optional<RowGroup> ReadRowGroup();
-    std::optional<RowGroup> ReadRowGroup(const std::vector<std::string>& colNames);
+    std::optional<RowGroup> ReadRowGroup(std::span<const std::string> colNames);
 
     bool HasMore() const;
 
@@ -73,7 +74,7 @@ private:
     void ReadSchema();
     void ReadFooter();
 
-    std::vector<size_t> ResolveColumnNames(const std::vector<std::string>& colNames) const;
+    std::vector<size_t> ResolveColumnNames(std::span<const std::string> colNames) const;
 
     RowGroup ReadAllColumns(const RowGroupMeta& meta);
     RowGroup ReadSelectedColumns(const RowGroupMeta& meta,

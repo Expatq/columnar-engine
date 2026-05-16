@@ -10,6 +10,58 @@
 
 namespace Columnar::Exec {
 
+namespace {
+
+using QueryBuilder = std::unique_ptr<Columnar::Exec::IOperator> (*)(const std::string&);
+
+constexpr QueryBuilder kClickBenchBuilders[] = {
+    &Columnar::Exec::BuildQ0,
+    &Columnar::Exec::BuildQ1,
+    &Columnar::Exec::BuildQ2,
+    &Columnar::Exec::BuildQ3,
+    &Columnar::Exec::BuildQ4,
+    &Columnar::Exec::BuildQ5,
+    &Columnar::Exec::BuildQ6,
+    &Columnar::Exec::BuildQ7,
+    &Columnar::Exec::BuildQ8,
+    &Columnar::Exec::BuildQ9,
+    &Columnar::Exec::BuildQ10,
+    &Columnar::Exec::BuildQ11,
+    &Columnar::Exec::BuildQ12,
+    &Columnar::Exec::BuildQ13,
+    &Columnar::Exec::BuildQ14,
+    &Columnar::Exec::BuildQ15,
+    &Columnar::Exec::BuildQ16,
+    &Columnar::Exec::BuildQ17,
+    &Columnar::Exec::BuildQ18,
+    &Columnar::Exec::BuildQ19,
+    &Columnar::Exec::BuildQ20,
+    &Columnar::Exec::BuildQ21,
+    &Columnar::Exec::BuildQ22,
+    &Columnar::Exec::BuildQ23,
+    &Columnar::Exec::BuildQ24,
+    &Columnar::Exec::BuildQ25,
+    &Columnar::Exec::BuildQ26,
+    &Columnar::Exec::BuildQ27,
+    &Columnar::Exec::BuildQ28,
+    &Columnar::Exec::BuildQ29,
+    &Columnar::Exec::BuildQ30,
+    &Columnar::Exec::BuildQ31,
+    &Columnar::Exec::BuildQ32,
+    &Columnar::Exec::BuildQ33,
+    &Columnar::Exec::BuildQ34,
+    &Columnar::Exec::BuildQ35,
+    &Columnar::Exec::BuildQ36,
+    &Columnar::Exec::BuildQ37,
+    &Columnar::Exec::BuildQ38,
+    &Columnar::Exec::BuildQ39,
+    &Columnar::Exec::BuildQ40,
+    &Columnar::Exec::BuildQ41,
+    &Columnar::Exec::BuildQ42,
+};
+
+}  // namespace
+
 // Q0: SELECT COUNT(*) FROM hits
 std::unique_ptr<IOperator> BuildQ0(const std::string& path) {
     return std::make_unique<MetadataScan>(
@@ -531,10 +583,10 @@ std::unique_ptr<IOperator> BuildQ38(const std::string& path) {
                           Literal(ParseDate("2013-07-01"), Date)),
                       Cmp(ColRef("EventDate", Date), CompareOp::Lte,
                           Literal(ParseDate("2013-07-31"), Date)),
-                      Cmp(ColRef("IsLink", Bool), CompareOp::NotEq,
-                          Literal(uint8_t{0}, Bool)),
-                      Cmp(ColRef("IsDownload", Bool), CompareOp::Eq,
-                          Literal(uint8_t{0}, Bool)),
+                      Cmp(ColRef("IsLink", I16), CompareOp::NotEq,
+                          Literal(int16_t{0}, I16)),
+                      Cmp(ColRef("IsDownload", I16), CompareOp::Eq,
+                          Literal(int16_t{0}, I16)),
                       Cmp(ColRef("URL", Str), CompareOp::NotEq,
                           Literal(std::string{""}, Str)))),
             Keys(Key(ColRef("URL", Str), "URL")),
@@ -612,6 +664,15 @@ std::unique_ptr<IOperator> BuildQ42(const std::string& path) {
             Keys(Key(DateTrunc(ColRef("EventTime", Ts), DateTruncUnit::Minute), "M")),
             Aggs(CountStar("c"))),
         SortBy(Asc(ColRef("M", I64))), 10);
+}
+
+std::unique_ptr<IOperator> BuildQuery(const std::string& iyxPath,
+                                      size_t queryId) {
+    if (queryId >= kClickBenchQueryCount) {
+        throw std::out_of_range("ClickBench query id is out of range: " +
+                                std::to_string(queryId));
+    }
+    return kClickBenchBuilders[queryId](iyxPath);
 }
 
 }  // namespace Columnar::Exec

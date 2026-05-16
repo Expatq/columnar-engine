@@ -39,6 +39,8 @@
 
 # debug information files
 *.dwo
+*.data
+*.svg
 
 #data for columnar engine
 *.csv

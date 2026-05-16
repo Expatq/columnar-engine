@@ -16,6 +16,33 @@
 
 namespace Columnar::IO {
 
+namespace {
+
+bool IsCompleteCsvRecord(const std::string& record) {
+    bool inQuotes = false;
+
+    size_t i = 0;
+    while (i < record.size()) {
+        const char c = record[i];
+        if (c != '"') {
+            ++i;
+            continue;
+        }
+
+        if (inQuotes && i + 1 < record.size() && record[i + 1] == '"') {
+            i += 2;
+            continue;
+        }
+
+        inQuotes = !inQuotes;
+        ++i;
+    }
+
+    return !inQuotes;
+}
+
+}  // namespace
+
 CsvReader::CsvReader(const std::string& filename, const Schema& schema)
     : file_(filename),
       schema_(schema) {
@@ -90,11 +117,32 @@ const Schema& CsvReader::GetSchema() const {
 }
 
 std::optional<std::string> CsvReader::ReadLine() {
-    std::string line;
-    if (std::getline(file_, line)) {
+    std::string record;
+    std::string physicalLine;
+    size_t recordStartLine = 0;
+
+    while (std::getline(file_, physicalLine)) {
         ++lineNumber_;
-        return line;
+        if (record.empty()) {
+            recordStartLine = lineNumber_;
+            record = std::move(physicalLine);
+        } else {
+            record += '\n';
+            record += physicalLine;
+        }
+
+        if (IsCompleteCsvRecord(record)) {
+            return record;
+        }
     }
+
+    if (!record.empty()) {
+        throw std::runtime_error(
+            "CsvReader: unclosed quoted record starting at line " +
+            std::to_string(recordStartLine) + ", reached EOF at line " +
+            std::to_string(lineNumber_));
+    }
+
     return std::nullopt;
 }
 

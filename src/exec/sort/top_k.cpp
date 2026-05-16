@@ -72,7 +72,7 @@ bool TopK::IsLess(const Row& first, const Row& second) const {
 }
 
 void TopK::ProcessBatch(const ExecBatch& batch) {
-    if (!batch.rowGroup || batch.Empty()) {
+    if (!batch.rowGroup) {
         return;
     }
 
@@ -86,6 +86,10 @@ void TopK::ProcessBatch(const ExecBatch& batch) {
             COLUMNAR_ASSERT(idx.has_value(), "sort key column not found in schema");
             keyColIndices_.push_back(*idx);
         }
+    }
+
+    if (batch.Empty()) {
+        return;
     }
 
     const size_t maxKeep = limit_ + offset_;

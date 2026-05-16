@@ -148,7 +148,7 @@ std::optional<RowGroup> FormatReader::ReadRowGroup() {
     return ReadAllColumns(rowGroupMetas_[curRowGroupIdx_++]);
 }
 
-std::optional<RowGroup> FormatReader::ReadRowGroup(const std::vector<std::string>& colNames) {
+std::optional<RowGroup> FormatReader::ReadRowGroup(std::span<const std::string> colNames) {
     if (curRowGroupIdx_ >= rowGroupMetas_.size())
         return std::nullopt;
     if (colNames.empty())
@@ -187,7 +187,7 @@ uint32_t FormatReader::GetRowGroupRows(size_t index) const {
 }
 
 std::vector<size_t> FormatReader::ResolveColumnNames(
-    const std::vector<std::string>& colNames) const {
+    std::span<const std::string> colNames) const {
     std::vector<size_t> indices;
     indices.reserve(colNames.size());
     for (const auto& name : colNames) {
