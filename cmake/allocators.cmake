@@ -41,7 +41,10 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 
+set(COLUMNAR_PREV_BUILD_TESTING ${BUILD_TESTING})
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(google_tcmalloc)
+set(BUILD_TESTING ${COLUMNAR_PREV_BUILD_TESTING} CACHE BOOL "" FORCE)
 
 if(TARGET tcmalloc)
     target_link_libraries(columnar_tcmalloc INTERFACE tcmalloc)
