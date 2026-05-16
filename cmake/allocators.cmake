@@ -12,6 +12,12 @@ set(
     CACHE STRING "google/tcmalloc git ref"
 )
 
+set(
+    COLUMNAR_TCMALLOC_BAZEL_VERSION
+    "8.4.2"
+    CACHE STRING "Bazel version used by Bazelisk to build google/tcmalloc"
+)
+
 add_library(columnar_tcmalloc INTERFACE)
 
 if(NOT COLUMNAR_USE_TCMALLOC)
@@ -34,12 +40,13 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
     )
 endif()
 
-find_program(COLUMNAR_BAZEL_EXECUTABLE bazel)
+find_program(COLUMNAR_BAZELISK_EXECUTABLE bazelisk)
 
-if(NOT COLUMNAR_BAZEL_EXECUTABLE)
+if(NOT COLUMNAR_BAZELISK_EXECUTABLE)
     message(FATAL_ERROR
-        "google/tcmalloc requires Bazel because upstream CMake integration is not reliable. "
-        "Install Bazel or reconfigure with -DCOLUMNAR_USE_TCMALLOC=OFF."
+        "google/tcmalloc requires Bazelisk because upstream CMake integration is not reliable "
+        "and system Bazel versions can break TCMalloc's Bazel dependency graph. "
+        "Install Bazelisk or reconfigure with -DCOLUMNAR_USE_TCMALLOC=OFF."
     )
 endif()
 
@@ -52,19 +59,43 @@ FetchContent_Declare(
 
 FetchContent_Populate(google_tcmalloc)
 
+set(COLUMNAR_TCMALLOC_OUTPUT_DIR
+    ${CMAKE_BINARY_DIR}/_deps/google_tcmalloc-artifacts
+)
+
 set(COLUMNAR_TCMALLOC_LIBRARY
-    ${google_tcmalloc_SOURCE_DIR}/bazel-bin/tcmalloc/libtcmalloc.a
+    ${COLUMNAR_TCMALLOC_OUTPUT_DIR}/libtcmalloc.a
+)
+
+set(COLUMNAR_TCMALLOC_BAZEL_LIBRARY
+    ${google_tcmalloc_BINARY_DIR}/bazel-bin/tcmalloc/libtcmalloc.a
 )
 
 add_custom_command(
     OUTPUT ${COLUMNAR_TCMALLOC_LIBRARY}
     COMMAND
-        ${COLUMNAR_BAZEL_EXECUTABLE}
+        ${CMAKE_COMMAND}
+        -E
+        make_directory
+        ${COLUMNAR_TCMALLOC_OUTPUT_DIR}
+    COMMAND
+        ${CMAKE_COMMAND}
+        -E
+        env
+        USE_BAZEL_VERSION=${COLUMNAR_TCMALLOC_BAZEL_VERSION}
+        ${COLUMNAR_BAZELISK_EXECUTABLE}
         build
         --compilation_mode=opt
+        --symlink_prefix=${google_tcmalloc_BINARY_DIR}/bazel-
         //tcmalloc
+    COMMAND
+        ${CMAKE_COMMAND}
+        -E
+        copy_if_different
+        ${COLUMNAR_TCMALLOC_BAZEL_LIBRARY}
+        ${COLUMNAR_TCMALLOC_LIBRARY}
     WORKING_DIRECTORY ${google_tcmalloc_SOURCE_DIR}
-    COMMENT "Building google/tcmalloc with Bazel"
+    COMMENT "Building google/tcmalloc with Bazelisk ${COLUMNAR_TCMALLOC_BAZEL_VERSION}"
     VERBATIM
 )
 
@@ -88,4 +119,4 @@ target_link_libraries(
     columnar_google_tcmalloc
 )
 
-message(STATUS "google/tcmalloc: enabled via Bazel")
+message(STATUS "google/tcmalloc: enabled via Bazelisk ${COLUMNAR_TCMALLOC_BAZEL_VERSION}")

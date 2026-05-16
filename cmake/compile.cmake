@@ -12,8 +12,6 @@ set(COLUMNAR_WARNING_FLAGS
     -Wno-deprecated-declarations
 )
 
-add_compile_options(${COLUMNAR_WARNING_FLAGS})
-
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
