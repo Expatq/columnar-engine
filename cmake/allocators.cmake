@@ -64,11 +64,11 @@ set(COLUMNAR_TCMALLOC_OUTPUT_DIR
 )
 
 set(COLUMNAR_TCMALLOC_LIBRARY
-    ${COLUMNAR_TCMALLOC_OUTPUT_DIR}/libtcmalloc.a
+    ${COLUMNAR_TCMALLOC_OUTPUT_DIR}/libtcmalloc.lo
 )
 
 set(COLUMNAR_TCMALLOC_BAZEL_LIBRARY
-    ${google_tcmalloc_BINARY_DIR}/bazel-bin/tcmalloc/libtcmalloc.a
+    ${google_tcmalloc_BINARY_DIR}/bazel-bin/tcmalloc/libtcmalloc.lo
 )
 
 add_custom_command(
