@@ -8,8 +8,8 @@ option(
 
 set(
     COLUMNAR_TCMALLOC_GIT_TAG
-    "74bff18"
-    CACHE STRING "Pinned google/tcmalloc commit"
+    "master"
+    CACHE STRING "Pinned google/tcmalloc git ref"
 )
 
 add_library(columnar_tcmalloc INTERFACE)
@@ -50,7 +50,7 @@ elseif(TARGET tcmalloc::tcmalloc)
 else()
     message(FATAL_ERROR
         "google/tcmalloc was fetched, but no known CMake target was exported. "
-        "Check the pinned commit and update cmake/allocators.cmake."
+        "Check the fetched google/tcmalloc CMake targets and update cmake/allocators.cmake."
     )
 endif()
 
