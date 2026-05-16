@@ -9,7 +9,7 @@ option(
 set(
     COLUMNAR_TCMALLOC_GIT_TAG
     "master"
-    CACHE STRING "Pinned google/tcmalloc git ref"
+    CACHE STRING "google/tcmalloc git ref"
 )
 
 add_library(columnar_tcmalloc INTERFACE)
@@ -34,6 +34,15 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
     )
 endif()
 
+find_program(COLUMNAR_BAZEL_EXECUTABLE bazel)
+
+if(NOT COLUMNAR_BAZEL_EXECUTABLE)
+    message(FATAL_ERROR
+        "google/tcmalloc requires Bazel because upstream CMake integration is not reliable. "
+        "Install Bazel or reconfigure with -DCOLUMNAR_USE_TCMALLOC=OFF."
+    )
+endif()
+
 FetchContent_Declare(
     google_tcmalloc
     GIT_REPOSITORY https://github.com/google/tcmalloc.git
@@ -41,20 +50,42 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 
-set(COLUMNAR_PREV_BUILD_TESTING ${BUILD_TESTING})
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(google_tcmalloc)
-set(BUILD_TESTING ${COLUMNAR_PREV_BUILD_TESTING} CACHE BOOL "" FORCE)
+FetchContent_Populate(google_tcmalloc)
 
-if(TARGET tcmalloc)
-    target_link_libraries(columnar_tcmalloc INTERFACE tcmalloc)
-elseif(TARGET tcmalloc::tcmalloc)
-    target_link_libraries(columnar_tcmalloc INTERFACE tcmalloc::tcmalloc)
-else()
-    message(FATAL_ERROR
-        "google/tcmalloc was fetched, but no known CMake target was exported. "
-        "Check the fetched google/tcmalloc CMake targets and update cmake/allocators.cmake."
-    )
-endif()
+set(COLUMNAR_TCMALLOC_LIBRARY
+    ${google_tcmalloc_SOURCE_DIR}/bazel-bin/tcmalloc/libtcmalloc.a
+)
 
-message(STATUS "google/tcmalloc: enabled")
+add_custom_command(
+    OUTPUT ${COLUMNAR_TCMALLOC_LIBRARY}
+    COMMAND
+        ${COLUMNAR_BAZEL_EXECUTABLE}
+        build
+        --compilation_mode=opt
+        //tcmalloc
+    WORKING_DIRECTORY ${google_tcmalloc_SOURCE_DIR}
+    COMMENT "Building google/tcmalloc with Bazel"
+    VERBATIM
+)
+
+add_custom_target(
+    columnar_build_tcmalloc
+    DEPENDS ${COLUMNAR_TCMALLOC_LIBRARY}
+)
+
+add_library(columnar_google_tcmalloc STATIC IMPORTED GLOBAL)
+add_dependencies(columnar_google_tcmalloc columnar_build_tcmalloc)
+
+set_target_properties(
+    columnar_google_tcmalloc
+    PROPERTIES
+    IMPORTED_LOCATION ${COLUMNAR_TCMALLOC_LIBRARY}
+)
+
+target_link_libraries(
+    columnar_tcmalloc
+    INTERFACE
+    columnar_google_tcmalloc
+)
+
+message(STATUS "google/tcmalloc: enabled via Bazel")
