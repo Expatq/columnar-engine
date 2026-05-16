@@ -4,6 +4,7 @@ project(columnar_engine)
 
 include(cmake/compile.cmake)
 include(cmake/dependencies.cmake)
+include(cmake/allocators.cmake)
 
 add_subdirectory(src)
 add_subdirectory(tools)

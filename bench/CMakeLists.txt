@@ -5,6 +5,7 @@ target_link_libraries(roundtrip_bench
     columnar_io
     columnar_parser
     columnar_util
+    columnar_tcmalloc
 )
 
 add_executable(clickbench_bench clickbench.cpp)
@@ -15,4 +16,5 @@ target_link_libraries(clickbench_bench
     columnar_io
     columnar_parser
     columnar_util
+    columnar_tcmalloc
 )

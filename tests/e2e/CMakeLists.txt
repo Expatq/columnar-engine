@@ -6,6 +6,7 @@ target_link_libraries(e2e_tests
     columnar_io
     columnar_parser
     columnar_util
+    columnar_tcmalloc
     GTest::gtest_main
 )
 
