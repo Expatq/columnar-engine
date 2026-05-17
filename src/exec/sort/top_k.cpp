@@ -71,6 +71,12 @@ bool TopK::Next(ExecBatch& out) {
         ProcessBatch(input_);
     }
 
+    if (heap_.empty() && schema_.IsEmpty()) {
+        out.Reset();
+        produced_ = true;
+        return false;
+    }
+
     out.Reset();
     out.rowGroup = std::make_shared<RowGroup>(BuildOutput());
     out.rowCount = out.rowGroup->GetRowCount();
@@ -145,12 +151,16 @@ bool TopK::IsLess(CandidateView lhs, CandidateView rhs) const {
 }
 
 void TopK::ProcessBatch(const ExecBatch& batch) {
-    if (!batch.rowGroup || batch.Empty()) {
+    if (!batch.rowGroup) {
         return;
     }
 
     const RowGroup& rowGroup = *batch.rowGroup;
     BindKeys(rowGroup);
+
+    if (batch.Empty()) {
+        return;
+    }
 
     auto heapCmp = [this](const Candidate& lhs, const Candidate& rhs) {
         return IsLess(View(lhs), View(rhs));
