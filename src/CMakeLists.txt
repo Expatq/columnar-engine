@@ -14,4 +14,5 @@ target_link_libraries(
     columnar_io
     columnar_util
     columnar_exec
+    columnar_tcmalloc
 )

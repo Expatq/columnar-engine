@@ -8,4 +8,4 @@ add_executable(data_generator data_generator.cpp)
 target_link_libraries(data_generator PRIVATE columnar)
 
 add_executable(run_query run_query.cpp)
-target_link_libraries(run_query PRIVATE columnar columnar_exec_query)
+target_link_libraries(run_query PRIVATE columnar)

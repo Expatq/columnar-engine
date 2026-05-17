@@ -7,7 +7,7 @@ FetchContent_Declare(
 )
 
 FetchContent_Declare(
-    absl
+    abseil-cpp
     GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
     GIT_TAG 20260107.1
 )
@@ -25,5 +25,5 @@ set(RE2_BUILD_BENCHMARK     OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 set(CMAKE_SKIP_INSTALL_RULES ON)
-FetchContent_MakeAvailable(absl re2)
+FetchContent_MakeAvailable(abseil-cpp re2)
 set(CMAKE_SKIP_INSTALL_RULES OFF)

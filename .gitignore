@@ -60,5 +60,6 @@ build
 junk
 data
 src/io/format/lib
+!bench/results/**
 
 columnar-engine-docs
