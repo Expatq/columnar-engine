@@ -59,16 +59,33 @@ FetchContent_Declare(
 
 FetchContent_Populate(google_tcmalloc)
 
+set(COLUMNAR_TCMALLOC_BRIDGE_DIR
+    ${google_tcmalloc_SOURCE_DIR}/cmake_bridge
+)
+
+file(MAKE_DIRECTORY ${COLUMNAR_TCMALLOC_BRIDGE_DIR})
+file(WRITE ${COLUMNAR_TCMALLOC_BRIDGE_DIR}/BUILD.bazel
+"load(\"@rules_cc//cc:cc_binary.bzl\", \"cc_binary\")
+
+cc_binary(
+    name = \"columnar_tcmalloc\",
+    linkshared = True,
+    linkstatic = True,
+    deps = [\"//tcmalloc\"],
+)
+"
+)
+
 set(COLUMNAR_TCMALLOC_OUTPUT_DIR
     ${CMAKE_BINARY_DIR}/_deps/google_tcmalloc-artifacts
 )
 
 set(COLUMNAR_TCMALLOC_LIBRARY
-    ${COLUMNAR_TCMALLOC_OUTPUT_DIR}/libtcmalloc.lo
+    ${COLUMNAR_TCMALLOC_OUTPUT_DIR}/libcolumnar_tcmalloc.so
 )
 
 set(COLUMNAR_TCMALLOC_BAZEL_LIBRARY
-    ${google_tcmalloc_BINARY_DIR}/bazel-bin/tcmalloc/libtcmalloc.lo
+    ${google_tcmalloc_BINARY_DIR}/bazel-bin/cmake_bridge/libcolumnar_tcmalloc.so
 )
 
 add_custom_command(
@@ -87,7 +104,7 @@ add_custom_command(
         build
         --compilation_mode=opt
         --symlink_prefix=${google_tcmalloc_BINARY_DIR}/bazel-
-        //tcmalloc
+        //cmake_bridge:columnar_tcmalloc
     COMMAND
         ${CMAKE_COMMAND}
         -E
@@ -104,7 +121,7 @@ add_custom_target(
     DEPENDS ${COLUMNAR_TCMALLOC_LIBRARY}
 )
 
-add_library(columnar_google_tcmalloc STATIC IMPORTED GLOBAL)
+add_library(columnar_google_tcmalloc SHARED IMPORTED GLOBAL)
 add_dependencies(columnar_google_tcmalloc columnar_build_tcmalloc)
 
 set_target_properties(
@@ -116,7 +133,9 @@ set_target_properties(
 target_link_libraries(
     columnar_tcmalloc
     INTERFACE
+    -Wl,--no-as-needed
     columnar_google_tcmalloc
+    -Wl,--as-needed
 )
 
 message(STATUS "google/tcmalloc: enabled via Bazelisk ${COLUMNAR_TCMALLOC_BAZEL_VERSION}")
