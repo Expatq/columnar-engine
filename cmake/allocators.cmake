@@ -71,6 +71,7 @@ cc_binary(
     name = \"columnar_tcmalloc\",
     linkshared = True,
     linkstatic = True,
+    linkopts = [\"-Wl,-soname,libcolumnar_tcmalloc.so\"],
     deps = [\"//tcmalloc\"],
 )
 "
@@ -136,6 +137,12 @@ target_link_libraries(
     -Wl,--no-as-needed
     columnar_google_tcmalloc
     -Wl,--as-needed
+)
+
+target_link_options(
+    columnar_tcmalloc
+    INTERFACE
+    -Wl,-rpath,${COLUMNAR_TCMALLOC_OUTPUT_DIR}
 )
 
 message(STATUS "google/tcmalloc: enabled via Bazelisk ${COLUMNAR_TCMALLOC_BAZEL_VERSION}")
