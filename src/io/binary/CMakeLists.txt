@@ -3,6 +3,7 @@ add_library(
     STATIC
     file_reader.cpp
     file_writer.cpp
+    file_ops.cpp
 )
 
 target_include_directories(binary_io PUBLIC ${CMAKE_SOURCE_DIR}/src)

@@ -1,3 +1,5 @@
+add_subdirectory(parallel)
+
 add_library(
     csv_io
     STATIC
@@ -6,4 +8,4 @@ add_library(
 )
 
 target_include_directories(csv_io PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(csv_io PUBLIC columnar_parser columnar_core)
+target_link_libraries(csv_io PUBLIC columnar_parser columnar_core csv_parallel_io)

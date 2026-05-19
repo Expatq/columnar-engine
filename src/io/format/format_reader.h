@@ -15,6 +15,12 @@
 
 namespace Columnar::IO {
 
+struct RawRowGroupRange {
+    uint64_t offset = 0;
+    uint64_t size = 0;
+    uint32_t rows = 0;
+};
+
 class FormatReader {
 public:
     explicit FormatReader(const std::string& filename);
@@ -36,6 +42,9 @@ public:
     const RowGroupMeta& GetRowGroupMeta(size_t index) const;
     uint64_t GetTotalRowCount() const;
     uint32_t GetRowGroupRows(size_t index) const;
+    uint64_t GetFooterOffset() const;
+    std::span<const ColStats> GetAllStats() const;
+    std::vector<RawRowGroupRange> GetRawRowGroupRanges() const;
 
     size_t CurrentRowGroupIndex() const {
         return curRowGroupIdx_;

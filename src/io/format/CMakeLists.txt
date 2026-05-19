@@ -3,6 +3,7 @@ add_library(
     STATIC
     format_reader.cpp
     format_writer.cpp
+    format_merger.cpp
     bitpack.cpp
 )
 

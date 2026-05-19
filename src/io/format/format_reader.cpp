@@ -186,6 +186,37 @@ uint32_t FormatReader::GetRowGroupRows(size_t index) const {
     return rowGroupMetas_[index].rowCount;
 }
 
+uint64_t FormatReader::GetFooterOffset() const {
+    return footerOffset_;
+}
+
+std::span<const ColStats> FormatReader::GetAllStats() const {
+    return allStats_;
+}
+
+std::vector<RawRowGroupRange> FormatReader::GetRawRowGroupRanges() const {
+    std::vector<RawRowGroupRange> ranges;
+    ranges.reserve(rowGroupMetas_.size());
+
+    for (size_t i = 0; i < rowGroupMetas_.size(); ++i) {
+        const uint64_t begin = rowGroupMetas_[i].offset;
+        const uint64_t end = i + 1 < rowGroupMetas_.size()
+                                 ? rowGroupMetas_[i + 1].offset
+                                 : footerOffset_;
+        if (end < begin) {
+            throw std::runtime_error("row group range is corrupted");
+        }
+
+        ranges.push_back(RawRowGroupRange{
+            .offset = begin,
+            .size = end - begin,
+            .rows = rowGroupMetas_[i].rowCount,
+        });
+    }
+
+    return ranges;
+}
+
 std::vector<size_t> FormatReader::ResolveColumnNames(
     std::span<const std::string> colNames) const {
     std::vector<size_t> indices;

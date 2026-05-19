@@ -16,13 +16,14 @@ public:
     FileReader& operator=(FileReader&&) noexcept;
 
     void Read(size_t offset, void* dst, size_t n) const;
-    size_t GetFileSize() const { return size_; }
+    size_t GetFileSize() const {
+        return size_;
+    }
 
-    // posix_fadvise(WILLNEED) — асинхронный prefetch диапазона в page cache.
     void Prefetch(size_t offset, size_t n) const;
 
 private:
-    int    fd_   = -1;
+    int fd_ = -1;
     size_t size_ = 0;
 };
 
