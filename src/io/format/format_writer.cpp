@@ -2,19 +2,155 @@
 #include <io/format/format_defs.h>
 #include <io/format/format_writer.h>
 
+#include <core/col_stats.h>
+#include <core/column.h>
+#include <core/row_group.h>
+#include <core/row_group_meta.h>
+#include <core/types.h>
+
 #include <util/assert.h>
+#include <util/byte_buffer.h>
+#include <util/int128.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <vector>
 
-#include "core/column.h"
-#include "core/row_group.h"
-#include "core/row_group_meta.h"
-#include "core/types.h"
-#include "util/int128.h"
-
 namespace Columnar::IO {
+
+namespace {
+
+ColStats EncodeColumnToBuffer(const Column& col, ByteBuffer& buf) {
+    ColStats stats;
+    std::visit(
+        Types::overloaded{
+            [&](const std::vector<int16_t>& v) {
+                if (v.empty()) {
+                    buf.Append(kEncRaw);
+                    return;
+                }
+                const auto [minIt, maxIt] = std::minmax_element(v.begin(), v.end());
+                stats.minVal = *minIt;
+                stats.maxVal = *maxIt;
+                const int64_t minVal = *minIt;
+                const uint8_t needed = MinBits(static_cast<uint64_t>(*maxIt - *minIt));
+                if (ShouldBitpack<int16_t>(needed)) {
+                    buf.Append(kEncBitpack);
+                    buf.Append(minVal);
+                    buf.Append(needed);
+                    std::vector<uint32_t> shifted(v.size());
+                    for (size_t i = 0; i < v.size(); ++i)
+                        shifted[i] = static_cast<uint32_t>(static_cast<int64_t>(v[i]) - minVal);
+                    std::vector<uint8_t> packed(PackedBytes(v.size(), needed));
+                    BitpackEncode(shifted.data(), v.size(), needed, packed.data());
+                    buf.Append(packed.data(), packed.size());
+                } else {
+                    buf.Append(kEncRaw);
+                    buf.Append(v.data(), v.size() * sizeof(int16_t));
+                }
+            },
+            [&](const std::vector<int32_t>& v) {
+                if (v.empty()) {
+                    buf.Append(kEncRaw);
+                    return;
+                }
+                const auto [minIt, maxIt] = std::minmax_element(v.begin(), v.end());
+                stats.minVal = *minIt;
+                stats.maxVal = *maxIt;
+                const int64_t minVal = *minIt;
+                const uint8_t needed = MinBits(static_cast<uint64_t>(*maxIt - *minIt));
+                if (ShouldBitpack<int32_t>(needed)) {
+                    buf.Append(kEncBitpack);
+                    buf.Append(minVal);
+                    buf.Append(needed);
+                    std::vector<uint32_t> shifted(v.size());
+                    for (size_t i = 0; i < v.size(); ++i)
+                        shifted[i] = static_cast<uint32_t>(static_cast<int64_t>(v[i]) - minVal);
+                    std::vector<uint8_t> packed(PackedBytes(v.size(), needed));
+                    BitpackEncode(shifted.data(), v.size(), needed, packed.data());
+                    buf.Append(packed.data(), packed.size());
+                } else {
+                    buf.Append(kEncRaw);
+                    buf.Append(v.data(), v.size() * sizeof(int32_t));
+                }
+            },
+            [&](const std::vector<int64_t>& v) {
+                buf.Append(kEncRaw);
+                if (v.empty())
+                    return;
+                const auto [minIt, maxIt] = std::minmax_element(v.begin(), v.end());
+                stats.minVal = *minIt;
+                stats.maxVal = *maxIt;
+                buf.Append(v.data(), v.size() * sizeof(int64_t));
+            },
+            [&](const std::vector<Int128>& v) {
+                buf.Append(kEncRaw);
+                if (v.empty())
+                    return;
+                const auto [minIt, maxIt] = std::minmax_element(v.begin(), v.end());
+                stats.minVal = *minIt;
+                stats.maxVal = *maxIt;
+                buf.Append(v.data(), v.size() * sizeof(Int128));
+            },
+            [&](const std::vector<uint8_t>& v) {
+                buf.Append(kEncRaw);
+                if (v.empty())
+                    return;
+                const auto [minIt, maxIt] = std::minmax_element(v.begin(), v.end());
+                stats.minVal = *minIt;
+                stats.maxVal = *maxIt;
+                buf.Append(v.data(), v.size());
+            },
+            [&](const std::vector<std::string>& v) {
+                uint64_t totalChars = 0;
+                for (const auto& s : v) totalChars += s.size();
+                buf.Append(totalChars);
+
+                uint32_t offset = 0;
+                for (const auto& s : v) {
+                    buf.Append(offset);
+                    offset += static_cast<uint32_t>(s.size());
+                }
+                buf.Append(offset);
+
+                for (const auto& s : v)
+                    if (!s.empty())
+                        buf.Append(s.data(), s.size());
+            },
+        },
+        col.GetData());
+
+    return stats;
+}
+
+}  // namespace
+
+FormatWriter::EncodedRowGroup FormatWriter::EncodeRowGroup(const RowGroup& rg) {
+    const size_t rowCount = rg.GetRowCount();
+    const size_t colCount = rg.GetColumnCount();
+
+    ByteBuffer buf;
+    buf.reserve(rowCount * colCount * sizeof(int32_t));
+
+    buf.Append(static_cast<int64_t>(rowCount));
+
+    const size_t colOffsetTablePos = buf.size();
+    for (size_t i = 0; i < colCount; ++i)
+        buf.Append(static_cast<uint64_t>(0));
+
+    std::vector<uint64_t> colOffsets(colCount);
+    std::vector<ColStats> stats(colCount);
+
+    for (size_t i = 0; i < colCount; ++i) {
+        colOffsets[i] = buf.size();
+        stats[i] = EncodeColumnToBuffer(rg.GetColumn(i), buf);
+    }
+
+    for (size_t i = 0; i < colCount; ++i)
+        buf.PatchAt(colOffsetTablePos + i * sizeof(uint64_t), colOffsets[i]);
+
+    return {std::move(buf.data), std::move(stats), static_cast<uint32_t>(rowCount)};
+}
 
 FormatWriter::FormatWriter(const std::string& filename)
     : writer_(filename) {
@@ -32,58 +168,27 @@ FormatWriter::~FormatWriter() {
 void FormatWriter::Begin(const Schema& schema) {
     COLUMNAR_ASSERT(!begun_, "already called");
     COLUMNAR_ASSERT(schema.GetColumnCount() > 0, "schema cannot be empty");
-
     schema_ = schema;
     begun_ = true;
-
     WriteHeader();
     WriteSchema();
 }
 
-void FormatWriter::WriteRowGroup(const RowGroup& rg) {
-    COLUMNAR_ASSERT(begun_, "called before Begin");
-    COLUMNAR_ASSERT(!ended_, "called after End");
+void FormatWriter::AppendBlob(const RowGroup& rg) {
+    COLUMNAR_ASSERT(begun_ && !ended_, "not in progress");
     COLUMNAR_ASSERT(rg.GetColumnCount() == schema_.GetColumnCount(), "column count mismatch");
-
     for (size_t i = 0; i < rg.GetColumnCount(); ++i)
         COLUMNAR_ASSERT(rg.GetColumn(i).GetType() == schema_.GetColumn(i).physical,
                         "physical type mismatch");
+    WriteEncoded(EncodeRowGroup(rg));
+}
 
-    const size_t rgOffset = writer_.GetPosition();
-    const size_t rowCount = rg.GetRowCount();
-    const size_t columnCount = rg.GetColumnCount();
-
-    writer_.Write(&rowCount, sizeof(rowCount));
-
-    const size_t colOffsetTablePos = writer_.GetPosition();
-    for (size_t i = 0; i < columnCount; ++i) {
-        uint64_t placeholder = 0;
-        writer_.Write(&placeholder, sizeof(placeholder));
-    }
-
-    std::vector<size_t> colOffsets;
-    colOffsets.reserve(columnCount);
-
-    for (size_t i = 0; i < columnCount; ++i) {
-        colOffsets.push_back(writer_.GetPosition() - rgOffset);
-        WriteColumn(rg.GetColumn(i));
-    }
-
-    const size_t afterColumnsPos = writer_.GetPosition();
-
-    writer_.Seek(colOffsetTablePos);
-    for (size_t offset : colOffsets) {
-        const uint64_t off64 = static_cast<uint64_t>(offset);
-        writer_.Write(&off64, sizeof(off64));
-    }
-    writer_.Seek(afterColumnsPos);
-
-    rgMetas_.push_back(RowGroupMeta{
-        static_cast<uint64_t>(rgOffset),
-        static_cast<uint32_t>(rowCount)});
-    totalRowCount_ += rowCount;
-
-    CollectStats(rg);
+void FormatWriter::WriteEncoded(EncodedRowGroup enc) {
+    const uint64_t rgOffset = static_cast<uint64_t>(writer_.GetPosition());
+    writer_.Write(enc.blob.data(), enc.blob.size());
+    rgMetas_.push_back(RowGroupMeta{rgOffset, enc.rowCount});
+    totalRowCount_ += enc.rowCount;
+    allStats_.data.push_back(std::move(enc.stats));
 }
 
 void FormatWriter::End() {
@@ -94,12 +199,8 @@ void FormatWriter::End() {
     const uint32_t rgCount = static_cast<uint32_t>(rgMetas_.size());
 
     writer_.Write(&rgCount, sizeof(rgCount));
-
-    for (const auto& m : rgMetas_)
-        writer_.Write(&m.offset, sizeof(m.offset));
-
-    for (const auto& m : rgMetas_)
-        writer_.Write(&m.rowCount, sizeof(m.rowCount));
+    for (const auto& m : rgMetas_) writer_.Write(&m.offset, sizeof(m.offset));
+    for (const auto& m : rgMetas_) writer_.Write(&m.rowCount, sizeof(m.rowCount));
 
     const uint8_t hasStats = allStats_.empty() ? 0u : 1u;
     writer_.Write(&hasStats, sizeof(hasStats));
@@ -116,14 +217,12 @@ void FormatWriter::End() {
     writer_.Write(kMagicBytes, kMagicSize);
     FinalizeHeader(footerOffset, rgCount);
     writer_.Flush();
-
     ended_ = true;
 }
 
 size_t FormatWriter::GetRowGroupCount() const {
     return rgMetas_.size();
 }
-
 size_t FormatWriter::GetTotalRowsWritten() const {
     return totalRowCount_;
 }
@@ -134,7 +233,7 @@ void FormatWriter::WriteHeader() {
     const uint64_t totalRowCount = 0;
     const uint64_t schemaOffset = kHeaderSize;
     const uint64_t footerOffset = 0;
-    char reserved[32] = {};
+    char reserved[kHeaderReservedSize] = {};
 
     writer_.Write(&colCount, sizeof(colCount));
     writer_.Write(&rgCount, sizeof(rgCount));
@@ -152,164 +251,13 @@ void FormatWriter::WriteSchema() {
     }
 }
 
-void FormatWriter::WriteColumn(const Column& col) {
-    std::visit(Types::overloaded{
-                   [this](const std::vector<int16_t>& v) {
-                       if (v.empty()) {
-                           const uint8_t enc = 0x00;
-                           writer_.Write(&enc, sizeof(enc));
-                           return;
-                       }
-                       const auto [minIt, maxIt] = std::minmax_element(v.begin(), v.end());
-                       const int64_t minVal = *minIt;
-                       const int64_t maxVal = *maxIt;
-                       const uint64_t range = static_cast<uint64_t>(maxVal - minVal);
-                       const uint8_t needed = MinBits(range);
-                       if (needed * 4 < sizeof(int16_t) * 8 * 3) {
-                           const uint8_t enc = 0x01;
-                           writer_.Write(&enc, sizeof(enc));
-                           writer_.Write(&minVal, sizeof(minVal));
-                           writer_.Write(&needed, sizeof(needed));
-                           std::vector<uint32_t> shifted(v.size());
-                           for (size_t i = 0; i < v.size(); ++i)
-                               shifted[i] = static_cast<uint32_t>(static_cast<int64_t>(v[i]) - minVal);
-                           std::vector<uint8_t> packed((v.size() * needed + 7) / 8);
-                           BitpackEncode(shifted.data(), v.size(), needed, packed.data());
-                           writer_.Write(packed.data(), packed.size());
-                       } else {
-                           const uint8_t enc = 0x00;
-                           writer_.Write(&enc, sizeof(enc));
-                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
-                       }
-                   },
-                   [this](const std::vector<int32_t>& v) {
-                       if (v.empty()) {
-                           const uint8_t enc = 0x00;
-                           writer_.Write(&enc, sizeof(enc));
-                           return;
-                       }
-                       const auto [minIt, maxIt] = std::minmax_element(v.begin(), v.end());
-                       const int64_t minVal = *minIt;
-                       const int64_t maxVal = *maxIt;
-                       const uint64_t range = static_cast<uint64_t>(maxVal - minVal);
-                       const uint8_t needed = MinBits(range);
-                       if (needed * 4 < sizeof(int32_t) * 8 * 3) {
-                           const uint8_t enc = 0x01;
-                           writer_.Write(&enc, sizeof(enc));
-                           writer_.Write(&minVal, sizeof(minVal));
-                           writer_.Write(&needed, sizeof(needed));
-                           std::vector<uint32_t> shifted(v.size());
-                           for (size_t i = 0; i < v.size(); ++i)
-                               shifted[i] = static_cast<uint32_t>(static_cast<int64_t>(v[i]) - minVal);
-                           std::vector<uint8_t> packed((v.size() * needed + 7) / 8);
-                           BitpackEncode(shifted.data(), v.size(), needed, packed.data());
-                           writer_.Write(packed.data(), packed.size());
-                       } else {
-                           const uint8_t enc = 0x00;
-                           writer_.Write(&enc, sizeof(enc));
-                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
-                       }
-                   },
-                   [this](const std::vector<int64_t>& v) {
-                       const uint8_t enc = 0x00;
-                       writer_.Write(&enc, sizeof(enc));
-                       if (!v.empty())
-                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
-                   },
-                   [this](const std::vector<Int128>& v) {
-                       const uint8_t enc = 0x00;
-                       writer_.Write(&enc, sizeof(enc));
-                       if (!v.empty())
-                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
-                   },
-                   [this](const std::vector<uint8_t>& v) {
-                       const uint8_t enc = 0x00;
-                       writer_.Write(&enc, sizeof(enc));
-                       if (!v.empty())
-                           writer_.Write(v.data(), v.size() * sizeof(v[0]));
-                   },
-                   [this](const std::vector<std::string>& v) {
-                       uint64_t totalChars = 0;
-                       for (const auto& s : v) totalChars += s.size();
-                       writer_.Write(&totalChars, sizeof(totalChars));
-
-                       uint32_t offset = 0;
-                       for (const auto& s : v) {
-                           writer_.Write(&offset, sizeof(offset));
-                           offset += static_cast<uint32_t>(s.size());
-                       }
-                       writer_.Write(&offset, sizeof(offset));
-
-                       for (const auto& s : v)
-                           if (!s.empty())
-                               writer_.Write(s.data(), s.size());
-                   },
-               },
-               col.GetData());
-}
-
-void FormatWriter::CollectStats(const RowGroup& rg) {
-    auto& rgStats = allStats_.data.emplace_back(rg.GetColumnCount());
-    for (size_t c = 0; c < rg.GetColumnCount(); ++c) {
-        auto& s = rgStats[c];
-        std::visit(Types::overloaded{
-                       [&](const std::vector<int16_t>& v) {
-                           for (int16_t x : v) {
-                               const int64_t val = x;
-                               if (val < s.minVal)
-                                   s.minVal = val;
-                               if (val > s.maxVal)
-                                   s.maxVal = val;
-                           }
-                       },
-                       [&](const std::vector<int32_t>& v) {
-                           for (int32_t x : v) {
-                               const int64_t val = x;
-                               if (val < s.minVal)
-                                   s.minVal = val;
-                               if (val > s.maxVal)
-                                   s.maxVal = val;
-                           }
-                       },
-                       [&](const std::vector<int64_t>& v) {
-                           for (int64_t x : v) {
-                               if (x < s.minVal)
-                                   s.minVal = x;
-                               if (x > s.maxVal)
-                                   s.maxVal = x;
-                           }
-                       },
-                       [&](const std::vector<uint8_t>& v) {
-                           for (uint8_t x : v) {
-                               const int64_t val = x;
-                               if (val < s.minVal)
-                                   s.minVal = val;
-                               if (val > s.maxVal)
-                                   s.maxVal = val;
-                           }
-                       },
-                       [&](const std::vector<Int128>& v) {
-                           for (Int128 x : v) {
-                               if (x < s.minVal)
-                                   s.minVal = x;
-                               if (x > s.maxVal)
-                                   s.maxVal = x;
-                           }
-                       },
-                       [](const std::vector<std::string>&) {},
-                   },
-                   rg.GetColumn(c).GetData());
-    }
-}
-
 void FormatWriter::FinalizeHeader(uint64_t footerOffset, uint32_t rgCount) {
     const size_t endPos = writer_.GetPosition();
     const uint64_t totalRowCount = static_cast<uint64_t>(totalRowCount_);
-
-    writer_.Seek(4);
+    writer_.Seek(kHeaderOffsetRgCount);
     writer_.Write(&rgCount, sizeof(rgCount));
     writer_.Write(&totalRowCount, sizeof(totalRowCount));
-    writer_.Seek(24);
+    writer_.Seek(kHeaderOffsetFooterOffset);
     writer_.Write(&footerOffset, sizeof(footerOffset));
     writer_.Seek(endPos);
 }

@@ -28,8 +28,11 @@ size_t GroupByKeySerializer::PackedSize(absl::Span<const GroupByKey> keyDefs) {
             case Types::PhysicalType::INT128:
                 total += sizeof(Int128);
                 break;
-            case Types::PhysicalType::STRING:
-                return SIZE_MAX;
+            case Types::PhysicalType::STRING: {
+                // String keys have no fixed serialized size.
+                constexpr size_t kVariableLengthKey = SIZE_MAX;
+                return kVariableLengthKey;
+            }
         }
     }
     return total;

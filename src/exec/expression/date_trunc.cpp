@@ -4,7 +4,7 @@
 #include <exec/interface/expression.h>
 
 #include <core/types.h>
-#include <stdint.h>
+#include <util/calendar.h>
 
 namespace Columnar::Exec {
 
@@ -52,11 +52,11 @@ Types::AnyPhysicalType DateTruncExpression::EvaluateScalar(const ExecBatch& inpu
 int64_t DateTruncExpression::GetDivisor() const {
     switch (unit_) {
         case DateTruncUnit::Minute:
-            return 60LL;
+            return Calendar::kSecondsPerMinute;
         case DateTruncUnit::Hour:
-            return 3600LL;
+            return Calendar::kSecondsPerHour;
         case DateTruncUnit::Day:
-            return 86400LL;
+            return Calendar::kSecondsPerDay;
         default:
             throw std::runtime_error("DateTrunc: unsupported unit");
     }

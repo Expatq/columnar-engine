@@ -9,7 +9,8 @@
 namespace Columnar::IO {
 
 FileWriter::FileWriter(const std::string& path) {
-    fd_ = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    constexpr mode_t kDefaultFileMode = 0644;
+    fd_ = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, kDefaultFileMode);
     if (fd_ < 0) {
         throw std::runtime_error("FileWriter: cannot open: " + path);
     }

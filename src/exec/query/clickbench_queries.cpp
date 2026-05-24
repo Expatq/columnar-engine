@@ -416,8 +416,9 @@ std::unique_ptr<IOperator> BuildQ29(const std::string& path) {
 
             Schema schema;
             std::vector<Column> columns;
-            columns.reserve(90);
-            for (int n = 0; n < 90; ++n) {
+            constexpr int kQ29SumCount = 90;  // Q29 computes 90 weighted sums w0..w89
+            columns.reserve(kQ29SumCount);
+            for (int n = 0; n < kQ29SumCount; ++n) {
                 schema.AddColumn("w" + std::to_string(n), Types::LogicalType::INT64);
                 columns.emplace_back(std::vector<int64_t>{baseSum + int64_t(n) * rowCount},
                                      Types::PhysicalType::INT64);

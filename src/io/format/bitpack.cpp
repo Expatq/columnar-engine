@@ -4,6 +4,7 @@
 #include <immintrin.h>
 #endif
 
+#include <climits>
 #include <cstring>
 #include <vector>
 
@@ -17,10 +18,10 @@ void BitpackEncode(const uint32_t* values, size_t n, uint8_t bitWidth, uint8_t* 
     for (size_t i = 0; i < n; ++i) {
         buf |= static_cast<uint64_t>(values[i]) << used;
         used += bitWidth;
-        while (used >= 8) {
+        while (used >= CHAR_BIT) {
             dst[bi++] = static_cast<uint8_t>(buf);
-            buf >>= 8;
-            used -= 8;
+            buf >>= CHAR_BIT;
+            used -= CHAR_BIT;
         }
     }
 
@@ -30,7 +31,8 @@ void BitpackEncode(const uint32_t* values, size_t n, uint8_t bitWidth, uint8_t* 
 
 static void DecodeScalarI32(const uint8_t* src, size_t n, uint8_t bitWidth,
                             int64_t minVal, int32_t* dst) {
-    const uint32_t mask = (bitWidth == 32) ? ~0u : ((1u << bitWidth) - 1u);
+    constexpr unsigned kUInt32Bits = sizeof(uint32_t) * CHAR_BIT;
+    const uint32_t mask = (bitWidth == kUInt32Bits) ? ~0u : ((1u << bitWidth) - 1u);
     uint64_t buf = 0;
     int bits = 0;
     size_t bi = 0;
@@ -38,7 +40,7 @@ static void DecodeScalarI32(const uint8_t* src, size_t n, uint8_t bitWidth,
     for (size_t i = 0; i < n; ++i) {
         while (bits < bitWidth) {
             buf |= static_cast<uint64_t>(src[bi++]) << bits;
-            bits += 8;
+            bits += CHAR_BIT;
         }
         dst[i] = static_cast<int32_t>(static_cast<int64_t>(buf & mask) + minVal);
         buf >>= bitWidth;

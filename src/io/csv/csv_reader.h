@@ -3,6 +3,7 @@
 #include <core/row_group.h>
 #include <core/schema.h>
 #include <core/types.h>
+#include <io/format/format_defs.h>
 
 #include <fstream>
 #include <optional>
@@ -12,7 +13,7 @@ namespace Columnar::IO {
 
 class CsvReader {
 public:
-    CsvReader(const std::string& filename, const Schema& schema);
+    CsvReader(const std::string& filename, const Schema& schema, size_t rowGroupSize = kDefaultRowGroupSize);
 
     std::optional<RowGroup> ReadRowGroup();
 
@@ -28,6 +29,7 @@ private:
     std::vector<Types::AnyColumnData> buffers_;
     size_t totalRowsRead_ = 0;
     size_t lineNumber_ = 0;
+    size_t rowGroupSize_;
 
     std::optional<std::string> ReadLine();
     void AppendToBuffer(size_t colIdx, const std::string& value);

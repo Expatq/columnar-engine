@@ -4,6 +4,7 @@
 #include <core/types.h>
 
 #include <util/assert.h>
+#include <util/calendar.h>
 #include <util/int128.h>
 
 #include <cstdint>
@@ -16,9 +17,7 @@
 namespace Columnar::Parser {
 
 std::string FormatDate(int32_t daysSinceEpoch) {
-    constexpr int64_t kSecondsPerDay = 86400;
-    std::time_t time =
-        static_cast<std::time_t>(static_cast<int64_t>(daysSinceEpoch) * kSecondsPerDay);
+    std::time_t time = static_cast<std::time_t>(static_cast<int64_t>(daysSinceEpoch) * Calendar::kSecondsPerDay);
     std::tm* tm = std::gmtime(&time);
 
     if (!tm) {
@@ -68,12 +67,12 @@ std::string FormatPhysicalCell(const Column& col, size_t row) {
 
 std::string FormatColumn(const Column& col, size_t row, Types::LogicalType logical) {
     switch (logical) {
-    case Types::LogicalType::DATE:
-        return FormatDate(col.GetTypedData<int32_t>()[row]);
-    case Types::LogicalType::TIMESTAMP:
-        return FormatTimestamp(col.GetTypedData<int64_t>()[row]);
-    default:
-        return FormatPhysicalCell(col, row);
+        case Types::LogicalType::DATE:
+            return FormatDate(col.GetTypedData<int32_t>()[row]);
+        case Types::LogicalType::TIMESTAMP:
+            return FormatTimestamp(col.GetTypedData<int64_t>()[row]);
+        default:
+            return FormatPhysicalCell(col, row);
     }
 }
 

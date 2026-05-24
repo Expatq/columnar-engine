@@ -1,198 +1,97 @@
 #include "value_parser.h"
 
 #include <parser/format/serialize_to_string.h>
-
 #include <core/types.h>
-
+#include <util/calendar.h>
 #include <util/int128.h>
 #include <util/str.h>
 
 #include <charconv>
 #include <cstdint>
-#include <ctime>
-#include <iomanip>
-#include <sstream>
 #include <stdexcept>
-#include <system_error>
+#include <string_view>
 
 namespace Columnar::Parser {
 
 namespace {
 
-// TODO: generalize implementation for all parse int
-
-// Parsers
-
-int16_t ParseInt16(const std::string& str) {
-    std::string stripped = str::strip(str);
-    if (stripped.empty()) {
-        throw std::invalid_argument("Cannot parse empty string as int16");
-    }
-
-    int16_t result;
-    auto [ptr, err_code] = std::from_chars(
-        stripped.data(), stripped.data() + stripped.size(), result);
-
-    if (err_code != std::errc{} || ptr != (stripped.data() + stripped.size())) {
-        throw std::invalid_argument("Cannot parse '" + str + "' as int16");
-    }
-
+template <typename T>
+T ParseInt(std::string_view sv) {
+    sv = str::strip(sv);
+    if (sv.empty())
+        throw std::invalid_argument("cannot parse empty string as int");
+    T result;
+    auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), result);
+    if (ec != std::errc{} || ptr != sv.data() + sv.size())
+        throw std::invalid_argument("cannot parse '" + std::string(sv) + "' as int");
     return result;
 }
 
-int32_t ParseInt32(const std::string& str) {
-    std::string stripped = str::strip(str);
-    if (stripped.empty()) {
-        throw std::invalid_argument("Cannot parse empty string as int32");
-    }
-
-    int32_t result;
-    auto [ptr, err_code] = std::from_chars(
-        stripped.data(), stripped.data() + stripped.size(), result);
-
-    if (err_code != std::errc{} || ptr != (stripped.data() + stripped.size())) {
-        throw std::invalid_argument("Cannot parse '" + str + "' as int32");
-    }
-
-    return result;
+uint8_t ParseBool(std::string_view sv) {
+    sv = str::strip(sv);
+    if (sv == "true")  return 1;
+    if (sv == "false") return 0;
+    throw std::invalid_argument("cannot parse '" + std::string(sv) + "' as bool");
 }
 
-int64_t ParseInt64(const std::string& str) {
-    std::string stripped = str::strip(str);
-    if (stripped.empty()) {
-        throw std::invalid_argument("Cannot parse empty string as int64");
-    }
-
-    int64_t result;
-    auto [ptr, err_code] = std::from_chars(
-        stripped.data(), stripped.data() + stripped.size(), result);
-
-    if (err_code != std::errc{} || ptr != (stripped.data() + stripped.size())) {
-        throw std::invalid_argument("Cannot parse '" + str + "' as int64");
-    }
-
-    return result;
+int32_t ParseDate(std::string_view sv) {
+    sv = str::strip(sv);
+    if (sv.size() != 10)
+        throw std::invalid_argument("cannot parse '" + std::string(sv) + "' as date");
+    const int y = (sv[0]-'0')*1000 + (sv[1]-'0')*100 + (sv[2]-'0')*10 + (sv[3]-'0');
+    const int m = (sv[5]-'0')*10   + (sv[6]-'0');
+    const int d = (sv[8]-'0')*10   + (sv[9]-'0');
+    return Calendar::GregorianToEpochDays(y, m, d);
 }
 
-[[maybe_unused]] int64_t ParseInt128(  // TODO: implement int128 support
-    const std::string& str) {
-    throw std::runtime_error("not implemented yet");
-    return str[0];  // some garbage for clangd
-}
-
-uint8_t ParseBool(const std::string& str) {
-    std::string pretty_str = str::tolower(str::strip(str));
-
-    if (pretty_str == "true") {
-        return 1;
-    }
-
-    if (pretty_str == "false") {
-        return 0;
-    }
-
-    throw std::invalid_argument("Cannot parse '" + str + "' as bool");
-}
-
-/**
- *   @brief Parse date in format YYYY-MM-DD
- *   @return Days since unix epoch (1970-01-01)
- */
-int32_t ParseDate(const std::string& str) {
-    std::string stripped = str::strip(str);
-
-    std::tm tm = {};
-    std::istringstream ss(stripped);
-    ss >> std::get_time(&tm, "%Y-%m-%d");
-
-    if (ss.fail()) {
-        throw std::invalid_argument("Cannot parse '" + str +
-                                    "' as date (expected YYYY-MM-DD)");
-    }
-
-    tm.tm_hour = 12;
-    std::time_t time = std::mktime(&tm);
-    if (time == -1) {
-        throw std::invalid_argument("Invalid date: " + str);
-    }
-
-    constexpr int64_t kSecondsPerDay = 86400;
-    return static_cast<int32_t>(time / kSecondsPerDay);
-}
-
-/**
- *   @brief Parse timestamp in format "YYYY-MM-DD HH:MM:SS"
- *   @return Seconds since unix epoch (1970-01-01)
-*/
-int64_t ParseTimestamp(const std::string& str) {
-    std::string stripped = str::strip(str);
-
-    std::tm tm = {};
-    std::istringstream ss(stripped);
-    ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-
-    if (ss.fail()) {
-        throw std::invalid_argument(
-            "Cannot parse '" + str +
-            "' as timestamp (expected YYYY-MM-DD HH:MM:SS)");
-    }
-
-    std::time_t time = std::mktime(&tm);
-    if (time == -1) {
-        throw std::invalid_argument("Invalid timestamp: " + str);
-    }
-
-    return static_cast<int64_t>(time);
+int64_t ParseTimestamp(std::string_view sv) {
+    sv = str::strip(sv);
+    if (sv.size() != 19)
+        throw std::invalid_argument("cannot parse '" + std::string(sv) + "' as timestamp");
+    const int y  = (sv[0]-'0')*1000 + (sv[1]-'0')*100 + (sv[2]-'0')*10 + (sv[3]-'0');
+    const int mo = (sv[5]-'0')*10   + (sv[6]-'0');
+    const int d  = (sv[8]-'0')*10   + (sv[9]-'0');
+    const int h  = (sv[11]-'0')*10  + (sv[12]-'0');
+    const int mi = (sv[14]-'0')*10  + (sv[15]-'0');
+    const int s  = (sv[17]-'0')*10  + (sv[18]-'0');
+    return Calendar::GregorianToEpochDays(y, mo, d) * Calendar::kSecondsPerDay
+           + h * Calendar::kSecondsPerHour + mi * Calendar::kSecondsPerMinute + s;
 }
 
 }  // namespace
 
-Types::AnyPhysicalType ParseValue(const std::string& str,
-                                  Types::LogicalType type) {
+Types::AnyPhysicalType ParseValue(std::string_view sv, Types::LogicalType type) {
     switch (type) {
-        case Types::LogicalType::INT16:
-            return ParseInt16(str);
-        case Types::LogicalType::INT32:
-            return ParseInt32(str);
-        case Types::LogicalType::INT64:
-            return ParseInt64(str);
-        case Types::LogicalType::BOOL:
-            return ParseBool(str);
-        case Types::LogicalType::STRING:
-            return str;
-        case Types::LogicalType::DATE:
-            return ParseDate(str);
-        case Types::LogicalType::TIMESTAMP:
-            return ParseTimestamp(str);
+        case Types::LogicalType::INT16:     return ParseInt<int16_t>(sv);
+        case Types::LogicalType::INT32:     return ParseInt<int32_t>(sv);
+        case Types::LogicalType::INT64:     return ParseInt<int64_t>(sv);
+        case Types::LogicalType::BOOL:      return ParseBool(sv);
+        case Types::LogicalType::STRING:    return std::string(sv);
+        case Types::LogicalType::DATE:      return ParseDate(sv);
+        case Types::LogicalType::TIMESTAMP: return ParseTimestamp(sv);
         case Types::LogicalType::INT128:
             throw std::invalid_argument("INT128 parsing not implemented");
         default:
-            throw std::invalid_argument("Unsupported data type for parsing");
+            throw std::invalid_argument("unsupported type");
     }
 }
 
-std::string ValueToString(const Types::AnyPhysicalType& value,
-                          Types::LogicalType type) {
+std::string ValueToString(const Types::AnyPhysicalType& value, Types::LogicalType type) {
     return std::visit(
-        Types::overloaded{[](int16_t v) { return std::to_string(v); },
-                          [type](int32_t v) {
-                              if (type == Types::LogicalType::DATE) {
-                                  return FormatDate(v);
-                              }
-                              return std::to_string(v);
-                          },
-                          [type](int64_t v) {
-                              if (type == Types::LogicalType::TIMESTAMP) {
-                                  return FormatTimestamp(v);
-                              }
-                              return std::to_string(v);
-                          },
-                          [](uint8_t v) {
-                              return v != 0 ? std::string("true")
-                                            : std::string("false");
-                          },
-                          [](const std::string& v) { return v; },
-                          [](Columnar::Int128 v) { return Columnar::Int128ToString(v); }},
+        Types::overloaded{
+            [](int16_t v)  { return std::to_string(v); },
+            [type](int32_t v) {
+                return type == Types::LogicalType::DATE
+                    ? FormatDate(v) : std::to_string(v);
+            },
+            [type](int64_t v) {
+                return type == Types::LogicalType::TIMESTAMP
+                    ? FormatTimestamp(v) : std::to_string(v);
+            },
+            [](uint8_t v)  { return v ? std::string("true") : std::string("false"); },
+            [](const std::string& v) { return v; },
+            [](Columnar::Int128 v) { return Columnar::Int128ToString(v); },
+        },
         value);
 }
 
