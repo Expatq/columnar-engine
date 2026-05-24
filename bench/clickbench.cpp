@@ -113,13 +113,11 @@ std::filesystem::path FindCsv2Iyx(const char* argv0) {
     const std::filesystem::path fallback = "tools/csv2iyx/csv2iyx";
     if (std::filesystem::exists(fallback))
         return fallback;
-    throw std::runtime_error(
-        "cannot find csv2iyx binary; pass --csv2iyx PATH");
+    return {};
 }
 
 Options ParseArgs(int argc, char** argv) {
     Options options;
-    options.csv2iyxPath = FindCsv2Iyx(argv[0]);
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -167,6 +165,11 @@ Options ParseArgs(int argc, char** argv) {
         options.iyxPath = options.csvPath;
         options.iyxPath.replace_extension(".iyx");
     }
+
+    if (options.csv2iyxPath.empty())
+        options.csv2iyxPath = FindCsv2Iyx(argv[0]);
+    if (options.csv2iyxPath.empty())
+        throw std::runtime_error("cannot find csv2iyx binary; pass --csv2iyx PATH");
 
     return options;
 }
