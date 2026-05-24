@@ -17,7 +17,7 @@
 namespace Columnar::Parser {
 
 std::string FormatDate(int32_t daysSinceEpoch) {
-    std::time_t time static_cast<std::time_t>(static_cast<int64_t>(daysSinceEpoch) * Calendar::kSecondsPerDay);
+    std::time_t time = static_cast<std::time_t>(static_cast<int64_t>(daysSinceEpoch) * Calendar::kSecondsPerDay);
     std::tm* tm = std::gmtime(&time);
 
     if (!tm) {
