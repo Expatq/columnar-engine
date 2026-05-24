@@ -1,21 +1,46 @@
 #include "top_k.h"
 
 #include <exec/interface/operator.h>
-#include <exec/core/selection_vector.h>
 #include <exec/result_format/row_group_builder.h>
 
 #include <core/row_group.h>
 
 #include <util/assert.h>
 
+#include <algorithm>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
 
 namespace Columnar::Exec {
 
-TopK::TopK(std::unique_ptr<IOperator> child, std::vector<SortKey> keys, size_t limit, size_t offset)
+namespace {
+
+template <typename T>
+int CompareTyped(const RowGroup& lhsGroup,
+                 RowId lhsRow,
+                 const RowGroup& rhsGroup,
+                 RowId rhsRow,
+                 size_t column) {
+    const auto& lhs = lhsGroup.GetColumn(column).GetTypedData<T>()[lhsRow];
+    const auto& rhs = rhsGroup.GetColumn(column).GetTypedData<T>()[rhsRow];
+    if (lhs < rhs) {
+        return -1;
+    }
+    if (rhs < lhs) {
+        return 1;
+    }
+    return 0;
+}
+
+}  // namespace
+
+TopK::TopK(std::unique_ptr<IOperator> child,
+           std::vector<SortKey> keys,
+           size_t limit,
+           size_t offset)
     : child_(std::move(child)),
       keys_(std::make_move_iterator(keys.begin()), std::make_move_iterator(keys.end())),
       limit_(limit),
@@ -23,12 +48,17 @@ TopK::TopK(std::unique_ptr<IOperator> child, std::vector<SortKey> keys, size_t l
     if (!child_ || keys_.empty() || limit_ == 0) {
         throw std::invalid_argument("TopK: invalid arguments");
     }
+    if (offset_ > std::numeric_limits<size_t>::max() - limit_) {
+        throw std::invalid_argument("TopK: limit + offset overflow");
+    }
+    maxKeep_ = limit_ + offset_;
 }
 
 void TopK::Open() {
     child_->Open();
     heap_.clear();
-    keyColIndices_.clear();
+    boundKeys_.clear();
+    input_.Reset();
     produced_ = false;
 }
 
@@ -40,6 +70,13 @@ bool TopK::Next(ExecBatch& out) {
     while (child_->Next(input_)) {
         ProcessBatch(input_);
     }
+
+    if (heap_.empty() && schema_.IsEmpty()) {
+        out.Reset();
+        produced_ = true;
+        return false;
+    }
+
     out.Reset();
     out.rowGroup = std::make_shared<RowGroup>(BuildOutput());
     out.rowCount = out.rowGroup->GetRowCount();
@@ -50,23 +87,65 @@ bool TopK::Next(ExecBatch& out) {
 void TopK::Close() noexcept {
     child_->Close();
     heap_.clear();
-    keyColIndices_.clear();
+    boundKeys_.clear();
+    input_.Reset();
     produced_ = false;
 }
 
-bool TopK::IsLess(const Row& first, const Row& second) const {
-    for (size_t i = 0; i < keys_.size(); ++i) {
-        const auto& firstValue = first[keyColIndices_[i]];
-        const auto& secondValue = second[keyColIndices_[i]];
+int TopK::CompareByPhysicalType(const RowGroup& lhsGroup,
+                                RowId lhsRow,
+                                const RowGroup& rhsGroup,
+                                RowId rhsRow,
+                                const BoundSortKey& key) {
+    switch (key.physical) {
+        case Types::PhysicalType::INT16:
+            return CompareTyped<int16_t>(lhsGroup, lhsRow, rhsGroup, rhsRow, key.column);
+        case Types::PhysicalType::INT32:
+            return CompareTyped<int32_t>(lhsGroup, lhsRow, rhsGroup, rhsRow, key.column);
+        case Types::PhysicalType::INT64:
+            return CompareTyped<int64_t>(lhsGroup, lhsRow, rhsGroup, rhsRow, key.column);
+        case Types::PhysicalType::INT128:
+            return CompareTyped<Int128>(lhsGroup, lhsRow, rhsGroup, rhsRow, key.column);
+        case Types::PhysicalType::BOOL:
+            return CompareTyped<uint8_t>(lhsGroup, lhsRow, rhsGroup, rhsRow, key.column);
+        case Types::PhysicalType::STRING:
+            return CompareTyped<std::string>(lhsGroup, lhsRow, rhsGroup, rhsRow, key.column);
+    }
+    COLUMNAR_ASSERT(false, "unknown physical type in TopK comparator");
+}
 
-        if (firstValue == secondValue) {
+void TopK::BindKeys(const RowGroup& rowGroup) {
+    if (!boundKeys_.empty()) {
+        return;
+    }
+
+    schema_ = rowGroup.GetSchema();
+    for (const auto& key : keys_) {
+        const auto cols = key.expr->RequiredColumns();
+        COLUMNAR_ASSERT(!cols.empty(), "sort key requires a column reference");
+
+        const auto idx = schema_.FindColumn(cols[0]);
+        COLUMNAR_ASSERT(idx.has_value(), "sort key column not found in schema");
+
+        const auto& column = schema_.GetColumn(*idx);
+        boundKeys_.push_back(BoundSortKey{
+            .column = *idx,
+            .physical = column.physical,
+            .descending = key.descending,
+        });
+    }
+}
+
+bool TopK::IsLess(CandidateView lhs, CandidateView rhs) const {
+    COLUMNAR_ASSERT(lhs.rowGroup != nullptr, "TopK lhs row group is null");
+    COLUMNAR_ASSERT(rhs.rowGroup != nullptr, "TopK rhs row group is null");
+
+    for (const auto& key : boundKeys_) {
+        const int cmp = CompareByPhysicalType(*lhs.rowGroup, lhs.row, *rhs.rowGroup, rhs.row, key);
+        if (cmp == 0) {
             continue;
         }
-        const bool less = std::visit([&](const auto& firstV) {
-            return firstV < std::get<std::decay_t<decltype(firstV)>>(secondValue);
-        },
-                                     firstValue);
-        return keys_[i].descending ? !less : less;
+        return key.descending ? cmp > 0 : cmp < 0;
     }
     return false;
 }
@@ -77,80 +156,102 @@ void TopK::ProcessBatch(const ExecBatch& batch) {
     }
 
     const RowGroup& rowGroup = *batch.rowGroup;
-    if (keyColIndices_.empty()) {
-        schema_ = rowGroup.GetSchema();
-        for (const auto& key : keys_) {
-            const auto cols = key.expr->RequiredColumns();
-            COLUMNAR_ASSERT(!cols.empty(), "sort key requires a column reference");
-            const auto idx = schema_.FindColumn(cols[0]);  // TODO: fix dirty hack with cols[0], because ORDER BY (A + B) wont work
-            COLUMNAR_ASSERT(idx.has_value(), "sort key column not found in schema");
-            keyColIndices_.push_back(*idx);
-        }
-    }
+    BindKeys(rowGroup);
 
     if (batch.Empty()) {
         return;
     }
 
-    const size_t maxKeep = limit_ + offset_;
-    auto heapCmp = [this](const Row& lhs, const Row& rhs) { return IsLess(lhs, rhs); };
-    auto forActiveRows = [&](auto&& func) {
-        if (batch.has_selection) {
-            for (RowId row : batch.selection.Rows()) {
-                func(row);
-            }
-        } else {
-            for (RowId row = 0; row < batch.rowCount; ++row) {
-                func(row);
-            }
+    auto heapCmp = [this](const Candidate& lhs, const Candidate& rhs) {
+        return IsLess(View(lhs), View(rhs));
+    };
+
+    auto processRow = [&](RowId rowId) {
+        const CandidateView incoming{.rowGroup = &rowGroup, .row = rowId};
+
+        if (heap_.size() < maxKeep_) {
+            heap_.push_back(Candidate{.rowGroup = batch.rowGroup, .row = rowId});
+            std::push_heap(heap_.begin(), heap_.end(), heapCmp);
+            return;
+        }
+
+        if (IsLess(incoming, View(heap_.front()))) {
+            std::pop_heap(heap_.begin(), heap_.end(), heapCmp);
+            heap_.back() = Candidate{.rowGroup = batch.rowGroup, .row = rowId};
+            std::push_heap(heap_.begin(), heap_.end(), heapCmp);
         }
     };
 
-    forActiveRows([&](RowId rowId) {
-        Row row;
-        row.reserve(rowGroup.GetColumnCount());
-        for (size_t colIdx = 0; colIdx < rowGroup.GetColumnCount(); ++colIdx) {
-            std::visit([&](const auto& vec) {
-                row.push_back(vec[rowId]);
-            },
-                       rowGroup.GetColumn(colIdx).GetData());
+    if (batch.has_selection) {
+        for (RowId rowId : batch.selection.Rows()) {
+            processRow(rowId);
         }
-
-        if (heap_.size() < maxKeep) {
-            heap_.push_back(std::move(row));
-            std::push_heap(heap_.begin(), heap_.end(), heapCmp);
-        } else if (IsLess(row, heap_.front())) {
-            std::pop_heap(heap_.begin(), heap_.end(), heapCmp);
-            heap_.back() = std::move(row);
-            std::push_heap(heap_.begin(), heap_.end(), heapCmp);
+    } else {
+        for (RowId rowId = 0; rowId < batch.rowCount; ++rowId) {
+            processRow(rowId);
         }
-    });
+    }
 }
 
 RowGroup TopK::BuildOutput() const {
-    std::vector<const Row*> sorted;
+    std::vector<const Candidate*> sorted;
     sorted.reserve(heap_.size());
+    for (const auto& candidate : heap_) {
+        sorted.push_back(&candidate);
+    }
 
-    for (const auto& row : heap_) {
-        sorted.push_back(&row);
-    };
+    std::sort(sorted.begin(), sorted.end(), [this](const Candidate* lhs, const Candidate* rhs) {
+        return IsLess(View(*lhs), View(*rhs));
+    });
 
-    std::sort(sorted.begin(), sorted.end(),
-              [this](const Row* lhs, const Row* rhs) { return IsLess(*lhs, *rhs); });
-
-    const size_t skipCnt = std::min(offset_, sorted.size());
-    const size_t takeCnt = std::min(limit_, sorted.size() > skipCnt ? sorted.size() - skipCnt : size_t{0});
+    const size_t skip = std::min(offset_, sorted.size());
+    const size_t available = sorted.size() - skip;
+    const size_t take = std::min(limit_, available);
 
     RowGroupBuilder builder(schema_);
-    for (size_t i = skipCnt; i < skipCnt + takeCnt; ++i) {
-        const Row& row = *sorted[i];
-        for (size_t c = 0; c < row.size(); ++c) {
-            std::visit([&](const auto& val) {
-                builder.Append<std::decay_t<decltype(val)>>(c, val);
-            },row[c]);
+    for (size_t i = skip; i < skip + take; ++i) {
+        const Candidate& candidate = *sorted[i];
+        const RowGroup& rowGroup = *candidate.rowGroup;
+        for (size_t col = 0; col < rowGroup.GetColumnCount(); ++col) {
+            AppendCell(builder, col, rowGroup, candidate.row);
         }
     }
     return builder.Finish();
+}
+
+TopK::CandidateView TopK::View(const Candidate& candidate) {
+    return CandidateView{
+        .rowGroup = candidate.rowGroup.get(),
+        .row = candidate.row,
+    };
+}
+
+void TopK::AppendCell(RowGroupBuilder& builder,
+                      size_t outCol,
+                      const RowGroup& rowGroup,
+                      RowId row) {
+    const Column& column = rowGroup.GetColumn(outCol);
+    switch (column.GetType()) {
+        case Types::PhysicalType::INT16:
+            builder.Append<int16_t>(outCol, column.GetTypedData<int16_t>()[row]);
+            return;
+        case Types::PhysicalType::INT32:
+            builder.Append<int32_t>(outCol, column.GetTypedData<int32_t>()[row]);
+            return;
+        case Types::PhysicalType::INT64:
+            builder.Append<int64_t>(outCol, column.GetTypedData<int64_t>()[row]);
+            return;
+        case Types::PhysicalType::INT128:
+            builder.Append<Int128>(outCol, column.GetTypedData<Int128>()[row]);
+            return;
+        case Types::PhysicalType::BOOL:
+            builder.Append<uint8_t>(outCol, column.GetTypedData<uint8_t>()[row]);
+            return;
+        case Types::PhysicalType::STRING:
+            builder.Append<std::string>(outCol, column.GetTypedData<std::string>()[row]);
+            return;
+    }
+    COLUMNAR_ASSERT(false, "unknown physical type in TopK output");
 }
 
 }  // namespace Columnar::Exec

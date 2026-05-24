@@ -3,11 +3,11 @@
 #include "sort_key.h"
 
 #include <exec/core/exec_batch.h>
-
-#include <exec/interface/expression.h>
 #include <exec/interface/operator.h>
+#include <exec/result_format/row_group_builder.h>
 
 #include <core/row_group.h>
+#include <core/schema.h>
 #include <core/types.h>
 
 #include <absl/container/inlined_vector.h>
@@ -29,20 +29,47 @@ public:
     void Close() noexcept override;
 
 private:
-    using Row = absl::InlinedVector<Types::AnyPhysicalType, 8>;
+    struct BoundSortKey {
+        size_t column = 0;
+        Types::PhysicalType physical = Types::PhysicalType::INT64;
+        bool descending = false;
+    };
 
-    bool IsLess(const Row& first, const Row& second) const;
+    struct CandidateView {
+        const RowGroup* rowGroup = nullptr;
+        RowId row = 0;
+    };
+
+    struct Candidate {
+        std::shared_ptr<RowGroup> rowGroup;
+        RowId row = 0;
+    };
+
+    void BindKeys(const RowGroup& rowGroup);
+    bool IsLess(CandidateView lhs, CandidateView rhs) const;
     void ProcessBatch(const ExecBatch& batch);
     RowGroup BuildOutput() const;
+
+    static int CompareByPhysicalType(const RowGroup& lhsGroup,
+                                     RowId lhsRow,
+                                     const RowGroup& rhsGroup,
+                                     RowId rhsRow,
+                                     const BoundSortKey& key);
+    static CandidateView View(const Candidate& candidate);
+    static void AppendCell(RowGroupBuilder& builder,
+                           size_t outCol,
+                           const RowGroup& rowGroup,
+                           RowId row);
 
     std::unique_ptr<IOperator> child_;
     absl::InlinedVector<SortKey, 4> keys_;
     size_t limit_;
     size_t offset_;
+    size_t maxKeep_;
 
     Schema schema_;
-    absl::InlinedVector<size_t, 4> keyColIndices_;
-    std::vector<Row> heap_;
+    absl::InlinedVector<BoundSortKey, 4> boundKeys_;
+    std::vector<Candidate> heap_;
     bool produced_ = false;
     ExecBatch input_;
 };
