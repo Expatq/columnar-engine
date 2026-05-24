@@ -17,8 +17,6 @@ struct GroupByKey {
 };
 
 struct GroupByKeySerializer {
-    static constexpr size_t kMaxKeyBytes = 512;
-
     static size_t PackedSize(absl::Span<const GroupByKey> keyDefs);
 
     static uint64_t PackInt64(const std::vector<ColumnSpan>& keyCols, size_t idx);

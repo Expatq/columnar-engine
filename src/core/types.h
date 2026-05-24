@@ -50,12 +50,6 @@ struct overloaded : Ts... {
     using Ts::operator()...;
 };
 
-// File format constants
-
-constexpr size_t kFileHeaderSize = 64;
-constexpr size_t kRowGroupHeaderSize = 32;
-constexpr size_t kChunkHeaderSize = 24;
-
 // Helper functions
 
 std::string GetLogicalTypeName(LogicalType type);

@@ -77,7 +77,9 @@ struct Int128Hash {
     size_t operator()(Int128 value) const noexcept {
         const uint64_t lo = static_cast<uint64_t>(value);
         const uint64_t hi = static_cast<uint64_t>(value >> 64);
-        return lo ^ (hi * 0x9e3779b97f4a7c15ULL);
+        // Knuth multiplicative hash (golden ratio × 2^64): minimises collisions on XOR mixing.
+        constexpr uint64_t kFibHashMul = 0x9e3779b97f4a7c15ULL;
+        return lo ^ (hi * kFibHashMul);
     }
 };
 

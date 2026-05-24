@@ -30,7 +30,7 @@ void NotExpression::EvaluateSelection(const ExecBatch& input, SelectionVector& o
     SelectionVector inner;
     operand_->EvaluateSelection(input, inner);
 
-    uint8_t matched[kBatchSize] = {};
+    std::vector<uint8_t> matched(input.rowCount, 0);
     for (RowId r : inner.Rows()) {
         matched[r] = 1;
     }

@@ -220,7 +220,7 @@ ConversionStats ConvertCsvToIyx(const std::filesystem::path& schemaPath,
         formatWriter.Begin(schema);
 
         while (auto rowGroup = csvReader.ReadRowGroup()) {
-            formatWriter.WriteRowGroup(*rowGroup);
+            formatWriter.AppendBlob(*rowGroup);
         }
 
         formatWriter.End();

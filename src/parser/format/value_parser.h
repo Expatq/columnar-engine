@@ -3,11 +3,12 @@
 #include <parser/format/serialize_to_string.h>
 
 #include <core/types.h>
-#include <string>
+
+#include <string_view>
 
 namespace Columnar::Parser {
 
-Types::AnyPhysicalType ParseValue(const std::string& str,
+Types::AnyPhysicalType ParseValue(std::string_view str,
                                   Types::LogicalType type);
 
 std::string ValueToString(const Types::AnyPhysicalType& value,

@@ -1,18 +1,18 @@
 #include "logical.h"
 
-#include <exec/core/required_columns.h>
 #include <exec/core/exec_batch.h>
+#include <exec/core/required_columns.h>
 #include <exec/core/selection_vector.h>
 #include <exec/interface/expression.h>
 
 #include <core/row_group.h>
 #include <core/types.h>
 
+#include <absl/container/flat_hash_set.h>
 #include <cstdint>
 #include <iterator>
 #include <numeric>
 #include <stdexcept>
-#include <absl/container/flat_hash_set.h>
 
 namespace Columnar::Exec {
 
@@ -74,7 +74,7 @@ void LogicalExpression::EvalAnd(const ExecBatch& input, SelectionVector& out) co
 }
 
 void LogicalExpression::EvalOr(const ExecBatch& input, SelectionVector& out) const {
-    uint8_t selected[kBatchSize] = {};
+    std::vector<uint8_t> selected(input.rowCount, 0);
 
     SelectionVector remaining;
     if (input.has_selection) {

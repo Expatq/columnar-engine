@@ -1,7 +1,7 @@
 #include "case_when.h"
 
-#include <stdexcept>
 #include <absl/container/flat_hash_set.h>
+#include <stdexcept>
 #include "core/row_group.h"
 #include "exec/core/selection_vector.h"
 
@@ -11,7 +11,7 @@ namespace {
 
 struct MergeSpans {
     size_t n;
-    const uint8_t* condBit;
+    const std::vector<uint8_t>* condBit;
     bool hasSel;
     std::span<const RowId> selRows;
     EvalState& state;
@@ -21,7 +21,7 @@ struct MergeSpans {
         auto out = state.ResizeBuffer<T>(n);
         for (size_t idx = 0; idx < n; ++idx) {
             const RowId physRow = hasSel ? selRows[idx] : static_cast<RowId>(idx);
-            out[idx] = condBit[physRow] ? thenCol[idx] : elseCol[idx];
+            out[idx] = condBit->at(physRow) ? thenCol[idx] : elseCol[idx];
         }
         return std::span<const T>{out.data(), n};
     }
@@ -67,14 +67,14 @@ ColumnSpan CaseWhenExpression::EvaluateColumn(const ExecBatch& input, EvalState&
     SelectionVector condSel;
     condition_->EvaluateSelection(input, condSel);
 
-    uint8_t condBit[kBatchSize] = {};
+    std::vector<uint8_t> condBit(input.rowCount, 0);
     for (RowId row : condSel.Rows()) condBit[row] = 1;
 
     const ColumnSpan thenSpan = then_->EvaluateColumn(input, thenState_);
     const ColumnSpan elseSpan = else_->EvaluateColumn(input, elseState_);
 
     const size_t n = input.ActiveRowCount();
-    return std::visit(MergeSpans{n, condBit, input.has_selection, input.selection.Rows(), state},
+    return std::visit(MergeSpans{n, &condBit, input.has_selection, input.selection.Rows(), state},
                       thenSpan, elseSpan);
 }
 

@@ -43,19 +43,19 @@ bool IsCompleteCsvRecord(const std::string& record) {
 
 }  // namespace
 
-CsvReader::CsvReader(const std::string& filename, const Schema& schema)
+CsvReader::CsvReader(const std::string& filename, const Schema& schema, size_t rowGroupSize)
     : file_(filename),
-      schema_(schema) {
+      schema_(schema),
+      rowGroupSize_(rowGroupSize) {
     if (!file_.is_open()) {
         throw std::runtime_error("Cannot open CSV file: " + filename);
     }
-    COLUMNAR_ASSERT(schema_.GetColumnCount() > 0,
-                    "schema cannot be empty");
+    COLUMNAR_ASSERT(schema_.GetColumnCount() > 0, "schema cannot be empty");
+    COLUMNAR_ASSERT(rowGroupSize_ > 0, "rowGroupSize must be > 0");
 
     buffers_.reserve(schema_.GetColumnCount());
     for (size_t i = 0; i < schema_.GetColumnCount(); ++i) {
-        buffers_.push_back(
-            Types::CreateEmptyColumnData(schema_.GetColumn(i).physical));
+        buffers_.push_back(Types::CreateEmptyColumnData(schema_.GetColumn(i).physical));
     }
 }
 
@@ -67,14 +67,13 @@ std::optional<RowGroup> CsvReader::ReadRowGroup() {
     ResetBuffers();
     size_t rowCount = 0;
 
-    while (rowCount < kBatchSize && !IsEnd()) {
+    while (rowCount < rowGroupSize_ && !IsEnd()) {
         auto line = ReadLine();
         if (!line || line->empty()) {
             continue;
         }
 
         auto fields = Parser::ParseCsvLine(*line);
-
         if (fields.size() != schema_.GetColumnCount()) {
             throw std::runtime_error(
                 "CsvReader: field count mismatch at line " +
@@ -139,8 +138,7 @@ std::optional<std::string> CsvReader::ReadLine() {
     if (!record.empty()) {
         throw std::runtime_error(
             "CsvReader: unclosed quoted record starting at line " +
-            std::to_string(recordStartLine) + ", reached EOF at line " +
-            std::to_string(lineNumber_));
+            std::to_string(recordStartLine));
     }
 
     return std::nullopt;
@@ -176,8 +174,7 @@ void CsvReader::AppendToBuffer(size_t colIdx, const std::string& value) {
 
 void CsvReader::ResetBuffers() {
     for (size_t i = 0; i < buffers_.size(); ++i) {
-        buffers_[i] =
-            Types::CreateEmptyColumnData(schema_.GetColumn(i).physical);
+        buffers_[i] = Types::CreateEmptyColumnData(schema_.GetColumn(i).physical);
     }
 }
 

@@ -11,21 +11,22 @@
 #include <exec/expression/case_when.h>
 #include <exec/expression/column_ref.h>
 #include <exec/expression/comparison.h>
-#include <exec/expression/regex_replace.h>
 #include <exec/expression/date_trunc.h>
 #include <exec/expression/like.h>
 #include <exec/expression/literal.h>
 #include <exec/expression/logical.h>
 #include <exec/expression/not.h>
+#include <exec/expression/regex_replace.h>
 #include <exec/expression/string_len.h>
 
 #include <exec/core/required_columns.h>
 #include <exec/filter/filter.h>
+#include <exec/interface/expression.h>
 #include <exec/sort/top_k.h>
 #include <exec/source/table_scan.h>
-#include <exec/interface/expression.h>
 
 #include <core/types.h>
+#include <util/calendar.h>
 
 #include <memory>
 
@@ -64,24 +65,13 @@ constexpr auto Str = Types::LogicalType::STRING;
 constexpr auto Ts = Types::LogicalType::TIMESTAMP;
 constexpr auto Date = Types::LogicalType::DATE;
 
-// Parser "YYYY-MM-DD" string literal into days since Unix epoch
+// Parse "YYYY-MM-DD" string literal into days since Unix epoch.
+// constexpr: evaluated at compile time when called with a string literal.
 constexpr int32_t ParseDate(const char* str) {
-    int y = (str[0] - '0') * 1000 + (str[1] - '0') * 100 + (str[2] - '0') * 10 + (str[3] - '0');
-    int m = (str[5] - '0') * 10 + (str[6] - '0');
-    int d = (str[8] - '0') * 10 + (str[9] - '0');
-
-    if (m <= 2) {
-        --y;
-        m += 9;
-    } else {
-        m -= 3;
-    }
-
-    const int era = y / 400;
-    const int yoe = y - era * 400;
-    const int doy = (153 * m + 2) / 5 + d - 1;
-    const int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    return static_cast<int32_t>(era * 146097 + doe - 719468);
+    const int y = (str[0] - '0') * 1000 + (str[1] - '0') * 100 + (str[2] - '0') * 10 + (str[3] - '0');
+    const int m = (str[5] - '0') * 10 + (str[6] - '0');
+    const int d = (str[8] - '0') * 10 + (str[9] - '0');
+    return Calendar::GregorianToEpochDays(y, m, d);
 }
 
 /*

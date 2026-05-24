@@ -10,8 +10,6 @@
 
 namespace Columnar {
 
-inline constexpr size_t kBatchSize = 2048;
-
 class RowGroup {
     using const_iterator = absl::InlinedVector<Column, 8>::const_iterator;
 
@@ -25,16 +23,20 @@ public:
     size_t GetRowCount() const;
 
     const Schema& GetSchema() const;
-    
+
     const Column& GetColumn(size_t index) const;
     Column& GetColumn(size_t index);
 
     const Column* FindColumn(const std::string& name) const;
     Column* FindColumn(const std::string& name);
 
-    const_iterator begin() const { return columns_.begin(); }
+    const_iterator begin() const {
+        return columns_.begin();
+    }
 
-    const_iterator end() const { return columns_.end(); }
+    const_iterator end() const {
+        return columns_.end();
+    }
 
 private:
     RowGroup(const RowGroup&) = delete;

@@ -68,7 +68,7 @@ size_t FormatReader::EstimateColSize(Types::PhysicalType type, size_t rowCount) 
         case Types::PhysicalType::BOOL:
             return rowCount + 1;
         default:
-            return rowCount * 64;
+            return rowCount * kStringAvgEstimatedBytes;
     }
 }
 
@@ -258,10 +258,10 @@ Column FormatReader::ReadColumn(Types::PhysicalType physical, size_t rowCount) {
         case Types::PhysicalType::INT16: {
             const uint8_t enc = ReadField<uint8_t>();
             std::vector<int16_t> values(rowCount);
-            if (enc == 0x01) {
+            if (enc == kEncBitpack) {
                 const int64_t minVal = ReadField<int64_t>();
                 const uint8_t bitWidth = ReadField<uint8_t>();
-                const size_t packedN = (rowCount * bitWidth + 7) / 8;
+                const size_t packedN = PackedBytes(rowCount, bitWidth);
                 std::vector<uint8_t> packed(packedN);
                 if (!packed.empty())
                     ReadBytes(packed.data(), packedN);
@@ -276,10 +276,10 @@ Column FormatReader::ReadColumn(Types::PhysicalType physical, size_t rowCount) {
         case Types::PhysicalType::INT32: {
             const uint8_t enc = ReadField<uint8_t>();
             std::vector<int32_t> values(rowCount);
-            if (enc == 0x01) {
+            if (enc == kEncBitpack) {
                 const int64_t minVal = ReadField<int64_t>();
                 const uint8_t bitWidth = ReadField<uint8_t>();
-                const size_t packedN = (rowCount * bitWidth + 7) / 8;
+                const size_t packedN = PackedBytes(rowCount, bitWidth);
                 std::vector<uint8_t> packed(packedN);
                 if (!packed.empty())
                     ReadBytes(packed.data(), packedN);

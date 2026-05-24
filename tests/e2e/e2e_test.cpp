@@ -121,7 +121,7 @@ TEST_F(FixtureE2E, CsvToIyxToCsvWithNumericSum) {
         formatWriter.Begin(inputSchema);
 
         while (auto rg = csvReader.ReadRowGroup()) {
-            formatWriter.WriteRowGroup(*rg);
+            formatWriter.AppendBlob(*rg);
         }
 
         formatWriter.End();
@@ -205,20 +205,20 @@ TEST_F(FixtureE2E, LargeDataMultipleRowGroups) {
     size_t writtenRowGroups = 0;
 
     {
-        IO::CsvReader csvReader(kTestInputDataCsv, schema);
+        IO::CsvReader csvReader(kTestInputDataCsv, schema, /*rowGroupSize=*/1000);
         IO::FormatWriter formatWriter(kTestIyxFile);
         formatWriter.Begin(schema);
 
         while (auto rg = csvReader.ReadRowGroup()) {
-            formatWriter.WriteRowGroup(*rg);
+            formatWriter.AppendBlob(*rg);
         }
 
         formatWriter.End();
         writtenRowGroups = formatWriter.GetRowGroupCount();
 
-        // минимум 3 row groups (5000 / 2048 ≈ 2.44)
-        EXPECT_GE(writtenRowGroups, 3)
-            << "Should have at least 3 row groups for 5000 rows";
+        // 5000 rows / rowGroupSize=1000 → exactly 5 row groups
+        EXPECT_GE(writtenRowGroups, 5)
+            << "Should have at least 5 row groups for 5000 rows with rowGroupSize=1000";
         EXPECT_EQ(formatWriter.GetTotalRowsWritten(), numRows);
     }
 
@@ -270,7 +270,7 @@ TEST_F(FixtureE2E, SelectiveColumnReadByName) {
         formatWriter.Begin(schema);
 
         while (auto rg = csvReader.ReadRowGroup()) {
-            formatWriter.WriteRowGroup(*rg);
+            formatWriter.AppendBlob(*rg);
         }
 
         formatWriter.End();
@@ -319,7 +319,7 @@ TEST_F(FixtureE2E, SelectiveColumnReadRejectsEmptyColumnList) {
         formatWriter.Begin(schema);
 
         while (auto rg = csvReader.ReadRowGroup()) {
-            formatWriter.WriteRowGroup(*rg);
+            formatWriter.AppendBlob(*rg);
         }
 
         formatWriter.End();

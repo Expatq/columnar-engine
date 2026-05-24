@@ -1,11 +1,12 @@
 #pragma once
 
-#include <core/column.h>
+#include <io/binary/file_writer.h>
+#include <io/format/stats_block.h>
+
+#include <core/col_stats.h>
 #include <core/row_group.h>
 #include <core/row_group_meta.h>
 #include <core/schema.h>
-#include <io/binary/file_writer.h>
-#include <io/format/stats_block.h>
 
 #include <cstdint>
 #include <string>
@@ -25,13 +26,23 @@ public:
     FormatWriter& operator=(FormatWriter&&) noexcept = default;
 
     void Begin(const Schema& schema);
-    void WriteRowGroup(const RowGroup& rg);
+
+    void AppendBlob(const RowGroup& rg);
+
     void End();
 
     size_t GetRowGroupCount() const;
     size_t GetTotalRowsWritten() const;
 
 private:
+    struct EncodedRowGroup {
+        std::vector<uint8_t> blob;
+        std::vector<ColStats> stats;
+        uint32_t rowCount;
+    };
+
+    static EncodedRowGroup EncodeRowGroup(const RowGroup& rg);
+
     FileWriter writer_;
     Schema schema_;
 
@@ -44,8 +55,7 @@ private:
 
     void WriteHeader();
     void WriteSchema();
-    void WriteColumn(const Column& col);
-    void CollectStats(const RowGroup& rg);
+    void WriteEncoded(EncodedRowGroup encRg);
     void FinalizeHeader(uint64_t footerOffset, uint32_t rgCount);
 };
 

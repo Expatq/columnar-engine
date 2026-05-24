@@ -140,7 +140,7 @@ BenchResult RunRoundTrip(const Options& options) {
         formatWriter.Begin(schema);
 
         while (auto rg = csvReader.ReadRowGroup()) {
-            formatWriter.WriteRowGroup(*rg);
+            formatWriter.AppendBlob(*rg);
         }
 
         formatWriter.End();
