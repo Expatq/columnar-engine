@@ -2,10 +2,7 @@
 #include <exec/core/operator_runner.h>
 #include <exec/query/clickbench_queries.h>
 
-#include <io/csv/csv_reader.h>
-#include <io/format/format_writer.h>
-
-#include <parser/format/schema_parser.h>
+#include <io/format/format_reader.h>
 
 #include <util/timer.h>
 
@@ -31,6 +28,7 @@ struct Options {
     std::filesystem::path csvPath;
     std::filesystem::path schemaPath = "script/hits.schema";
     std::filesystem::path iyxPath;
+    std::filesystem::path csv2iyxPath;
     std::filesystem::path timingsPath = "clickbench_timings.csv";
     std::filesystem::path conversionStatsPath =
         "clickbench_conversion_stats.csv";
@@ -67,7 +65,7 @@ struct QueryRunStats {
 [[noreturn]] void Usage(const char* program) {
     std::cerr
         << "Usage: " << program << " --csv RELATIVE_PATH "
-        << "[--schema FILE] [--iyx FILE] [--timings FILE] "
+        << "[--schema FILE] [--iyx FILE] [--csv2iyx PATH] [--timings FILE] "
         << "[--conversion-stats FILE] [--query-stats FILE] [--runs N] "
         << "[--reuse-iyx] [--continue-on-error]\n";
     std::exit(EXIT_FAILURE);
@@ -104,8 +102,24 @@ uint64_t ParsePositiveUInt(std::string_view value, std::string_view name) {
     return result;
 }
 
+std::filesystem::path FindCsv2Iyx(const char* argv0) {
+    std::error_code ec;
+    const auto self = std::filesystem::canonical(argv0, ec);
+    if (!ec) {
+        auto candidate = self.parent_path() / "csv2iyx";
+        if (std::filesystem::exists(candidate))
+            return candidate;
+    }
+    const std::filesystem::path fallback = "tools/csv2iyx/csv2iyx";
+    if (std::filesystem::exists(fallback))
+        return fallback;
+    throw std::runtime_error(
+        "cannot find csv2iyx binary; pass --csv2iyx PATH");
+}
+
 Options ParseArgs(int argc, char** argv) {
     Options options;
+    options.csv2iyxPath = FindCsv2Iyx(argv[0]);
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -115,6 +129,8 @@ Options ParseArgs(int argc, char** argv) {
             options.schemaPath = RequireValue(argc, argv, i);
         } else if (arg == "--iyx") {
             options.iyxPath = RequireValue(argc, argv, i);
+        } else if (arg == "--csv2iyx") {
+            options.csv2iyxPath = RequireValue(argc, argv, i);
         } else if (arg == "--timings") {
             options.timingsPath = RequireValue(argc, argv, i);
         } else if (arg == "--conversion-stats") {
@@ -194,7 +210,8 @@ PreparedCsv RequireExistingCsv(const std::filesystem::path& relativePath) {
     return {.path = relativePath};
 }
 
-ConversionStats ConvertCsvToIyx(const std::filesystem::path& schemaPath,
+ConversionStats ConvertCsvToIyx(const std::filesystem::path& csv2iyxPath,
+                                const std::filesystem::path& schemaPath,
                                 const std::filesystem::path& csvPath,
                                 const std::filesystem::path& iyxPath,
                                 bool reuseIyx) {
@@ -210,26 +227,26 @@ ConversionStats ConvertCsvToIyx(const std::filesystem::path& schemaPath,
     const auto tmpPath = iyxPath.string() + ".tmp." + std::to_string(::getpid());
     std::filesystem::remove(tmpPath);
 
-    const Columnar::Schema schema =
-        Columnar::Parser::LoadSchemaFromCsv(schemaPath.string());
+    const std::string cmd =
+        csv2iyxPath.string() + " " +
+        schemaPath.string() + " " +
+        csvPath.string() + " " +
+        tmpPath;
 
     Columnar::Util::Timer timer;
     try {
-        Columnar::IO::CsvReader csvReader(csvPath.string(), schema);
-        Columnar::IO::FormatWriter formatWriter(tmpPath);
-        formatWriter.Begin(schema);
+        const int ret = std::system(cmd.c_str());
+        if (ret != 0)
+            throw std::runtime_error("csv2iyx exited with code " + std::to_string(ret));
 
-        while (auto rowGroup = csvReader.ReadRowGroup()) {
-            formatWriter.AppendBlob(*rowGroup);
-        }
-
-        formatWriter.End();
         stats.elapsedMs = timer.ElapsedMilliseconds();
         stats.elapsedSeconds = timer.ElapsedSeconds();
-        stats.rows = csvReader.GetTotalRowsRead();
-        stats.rowGroups = formatWriter.GetRowGroupCount();
 
         std::filesystem::rename(tmpPath, iyxPath);
+
+        Columnar::IO::FormatReader reader(iyxPath.string());
+        stats.rows = reader.GetTotalRowCount();
+        stats.rowGroups = reader.GetRowGroupCount();
     } catch (...) {
         std::filesystem::remove(tmpPath);
         throw;
@@ -367,8 +384,8 @@ int main(int argc, char** argv) {
         const PreparedCsv csv = RequireExistingCsv(options.csvPath);
 
         const ConversionStats conversion =
-            ConvertCsvToIyx(options.schemaPath, csv.path, options.iyxPath,
-                            options.reuseIyx);
+            ConvertCsvToIyx(options.csv2iyxPath, options.schemaPath,
+                            csv.path, options.iyxPath, options.reuseIyx);
         WriteConversionStats(options.conversionStatsPath, conversion);
 
         std::vector<QueryRunStats> allRuns;

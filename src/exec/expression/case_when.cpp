@@ -1,9 +1,10 @@
 #include "case_when.h"
 
+#include <exec/core/selection_vector.h>
+
 #include <absl/container/flat_hash_set.h>
+
 #include <stdexcept>
-#include "core/row_group.h"
-#include "exec/core/selection_vector.h"
 
 namespace Columnar::Exec {
 

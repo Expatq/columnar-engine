@@ -1,7 +1,7 @@
 #include "converter.h"
 
+#include <io/binary/mmap_file/mmap_file.h>
 #include <io/format/format_writer.h>
-#include <io/format/lib/mmap_file.h>
 #include <parser/csv/csv_parser.h>
 #include <parser/format/schema_parser.h>
 #include <parser/format/value_parser.h>
@@ -29,19 +29,12 @@ namespace Columnar {
 
 namespace {
 
-// Over-partition relative to thread count so a slow chunk doesn't stall others.
-constexpr size_t kChunksPerThread   = 8;
-// Limits in-flight RowGroup objects to bound memory usage.
-// At 8 threads with hits.csv: 16 × 160 MB ≈ 2.5 GB peak.
+constexpr size_t kChunksPerThread = 8;
 constexpr size_t kMaxInFlightFactor = 2;
+constexpr std::ptrdiff_t kMaxSemaphoreCount = 4096;
 
-// ─── File splitting ────────────────────────────────────────────────────────────
-
-// Each chunk ends exactly on '\n' so workers only see complete lines.
-// Assumption: '\n' does not appear inside quoted fields (holds for hits.csv).
 std::vector<std::pair<size_t, size_t>> SplitFile(
-    const uint8_t* data, size_t fileSize, size_t numChunks)
-{
+    const uint8_t* data, size_t fileSize, size_t numChunks) {
     std::vector<std::pair<size_t, size_t>> result;
     result.reserve(numChunks);
 
@@ -56,7 +49,8 @@ std::vector<std::pair<size_t, size_t>> SplitFile(
         }
         size_t end = std::min(start + targetSize, fileSize);
         while (end < fileSize && data[end] != '\n') ++end;
-        if (end < fileSize) ++end;
+        if (end < fileSize)
+            ++end;
         result.push_back({start, end - start});
         start = end;
     }
@@ -64,46 +58,36 @@ std::vector<std::pair<size_t, size_t>> SplitFile(
     return result;
 }
 
-// ─── Pipeline element ─────────────────────────────────────────────────────────
-
-// Two-level tag for restoring write order from parallel workers.
-// isLastInChunk signals the main thread that a chunk is fully consumed.
 struct TaggedRowGroup {
-    size_t   chunkIdx;
-    size_t   rgIdx;
-    bool     isLastInChunk;
+    size_t chunkIdx;
+    size_t rgIdx;
+    bool isLastInChunk;
     RowGroup rg;
 
     bool operator>(const TaggedRowGroup& o) const {
-        if (chunkIdx != o.chunkIdx) return chunkIdx > o.chunkIdx;
+        if (chunkIdx != o.chunkIdx)
+            return chunkIdx > o.chunkIdx;
         return rgIdx > o.rgIdx;
     }
 };
 
-// ─── Parsing ──────────────────────────────────────────────────────────────────
-
 void AppendParsedToBuffer(Types::AnyColumnData& buf, const Types::AnyPhysicalType& val) {
     std::visit(
         Types::overloaded{
-            [&](std::vector<int16_t>& v)     { v.push_back(std::get<int16_t>(val)); },
-            [&](std::vector<int32_t>& v)     { v.push_back(std::get<int32_t>(val)); },
-            [&](std::vector<int64_t>& v)     { v.push_back(std::get<int64_t>(val)); },
-            [&](std::vector<uint8_t>& v)     { v.push_back(std::get<uint8_t>(val)); },
+            [&](std::vector<int16_t>& v) { v.push_back(std::get<int16_t>(val)); },
+            [&](std::vector<int32_t>& v) { v.push_back(std::get<int32_t>(val)); },
+            [&](std::vector<int64_t>& v) { v.push_back(std::get<int64_t>(val)); },
+            [&](std::vector<uint8_t>& v) { v.push_back(std::get<uint8_t>(val)); },
             [&](std::vector<std::string>& v) { v.push_back(std::get<std::string>(val)); },
-            [&](std::vector<Int128>& v)      { v.push_back(std::get<Int128>(val)); },
+            [&](std::vector<Int128>& v) { v.push_back(std::get<Int128>(val)); },
         },
         buf);
 }
 
-// Parses a byte range of CSV, emitting each completed RowGroup immediately via
-// callback. Workers hold no shared mutable state beyond the queue/semaphore
-// accessed through the callback.
-// The callback acquires a semaphore slot and may block when the queue is full.
 void ParseChunk(
     const uint8_t* data, size_t offset, size_t length,
     const Schema& schema, size_t chunkIdx, size_t rowGroupSize,
-    std::function<void(TaggedRowGroup)> emit)
-{
+    std::function<void(TaggedRowGroup)> emit) {
     const size_t colCount = schema.GetColumnCount();
 
     std::vector<Types::AnyColumnData> bufs;
@@ -114,7 +98,7 @@ void ParseChunk(
     }
 
     size_t rowsInRg = 0;
-    size_t rgIdx    = 0;
+    size_t rgIdx = 0;
 
     auto flushRg = [&](bool isLast) {
         std::vector<Column> cols;
@@ -132,14 +116,16 @@ void ParseChunk(
     const char* end = ptr + length;
 
     while (ptr < end) {
-        const char* nl      = static_cast<const char*>(std::memchr(ptr, '\n', end - ptr));
+        const char* nl = static_cast<const char*>(std::memchr(ptr, '\n', end - ptr));
         const char* lineEnd = nl ? nl : end;
 
         std::string_view line(ptr, lineEnd - ptr);
-        if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+        if (!line.empty() && line.back() == '\r')
+            line.remove_suffix(1);
         ptr = lineEnd + (nl ? 1 : 0);
 
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
 
         auto fields = Parser::ParseCsvLine(std::string(line));
         if (fields.size() != colCount)
@@ -154,42 +140,37 @@ void ParseChunk(
                 Parser::ParseValue(fields[i], schema.GetColumn(i).logical));
 
         ++rowsInRg;
-        if (rowsInRg >= rowGroupSize) flushRg(/*isLast=*/false);
+        if (rowsInRg >= rowGroupSize)
+            flushRg(/*isLast=*/false);
     }
 
-    // Last (possibly partial) row group, or an empty terminator for empty chunks.
-    // isLastInChunk=true tells the main thread this chunk is complete.
     flushRg(/*isLast=*/true);
 }
 
 }  // namespace
 
-// ─── Public entry point ────────────────────────────────────────────────────────
-
 void Run(const ConvertOptions& opts) {
     const Schema schema = Parser::LoadSchemaFromCsv(opts.schemaPath);
 
     const size_t numThreads = opts.numThreads > 0
-        ? opts.numThreads
-        : std::thread::hardware_concurrency();
+                                  ? opts.numThreads
+                                  : std::thread::hardware_concurrency();
 
     IO::MmapFile csvFile(opts.csvPath);
-    const uint8_t* data     = csvFile.Ptr(0);
-    const size_t   fileSize = csvFile.GetFileSize();
+    const uint8_t* data = csvFile.Ptr(0);
+    const size_t fileSize = csvFile.GetFileSize();
 
-    const size_t numChunks   = numThreads * kChunksPerThread;
+    const size_t numChunks = numThreads * kChunksPerThread;
     const size_t maxInFlight = numThreads * kMaxInFlightFactor;
 
     auto chunks = SplitFile(data, fileSize, numChunks);
 
-    // Semaphore counts TaggedRowGroup objects in the queue.
-    // A worker acquires a slot before emit; the main thread releases after AppendBlob.
-    std::counting_semaphore<> semaphore(static_cast<std::ptrdiff_t>(maxInFlight));
+    std::counting_semaphore<kMaxSemaphoreCount> semaphore(static_cast<std::ptrdiff_t>(maxInFlight));
 
     std::atomic<size_t> nextChunk{0};
-    std::mutex          mtx;
+    std::mutex mtx;
     std::condition_variable cv;
-    std::exception_ptr  firstError;
+    std::exception_ptr firstError;
 
     using Heap = std::priority_queue<
         TaggedRowGroup, std::vector<TaggedRowGroup>, std::greater<TaggedRowGroup>>;
@@ -202,7 +183,8 @@ void Run(const ConvertOptions& opts) {
         workers.emplace_back([&](std::stop_token stoken) {
             while (!stoken.stop_requested()) {
                 const size_t idx = nextChunk.fetch_add(1, std::memory_order_relaxed);
-                if (idx >= chunks.size()) break;
+                if (idx >= chunks.size())
+                    break;
 
                 auto emit = [&](TaggedRowGroup trg) {
                     semaphore.acquire();
@@ -219,7 +201,8 @@ void Run(const ConvertOptions& opts) {
                                schema, idx, opts.rowGroupSize, emit);
                 } catch (...) {
                     std::lock_guard lock(mtx);
-                    if (!firstError) firstError = std::current_exception();
+                    if (!firstError)
+                        firstError = std::current_exception();
                     cv.notify_one();
                 }
             }
@@ -230,14 +213,12 @@ void Run(const ConvertOptions& opts) {
     writer.Begin(schema);
 
     size_t expectedChunk = 0;
-    size_t expectedRg    = 0;
+    size_t expectedRg = 0;
 
     while (expectedChunk < chunks.size()) {
         std::unique_lock lock(mtx);
         cv.wait(lock, [&] {
-            return firstError || (!ready.empty()
-                && ready.top().chunkIdx == expectedChunk
-                && ready.top().rgIdx    == expectedRg);
+            return firstError || (!ready.empty() && ready.top().chunkIdx == expectedChunk && ready.top().rgIdx == expectedRg);
         });
 
         if (firstError) {
@@ -265,7 +246,8 @@ void Run(const ConvertOptions& opts) {
     }
 
     workers.clear();
-    if (firstError) std::rethrow_exception(firstError);
+    if (firstError)
+        std::rethrow_exception(firstError);
 
     writer.End();
 }

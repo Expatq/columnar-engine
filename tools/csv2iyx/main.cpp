@@ -1,6 +1,5 @@
 #include "converter.h"
 
-#include <io/format/format_defs.h>
 #include <util/timer.h>
 
 #include <cstdlib>

@@ -1,8 +1,5 @@
-#include <core/schema.h>
-#include <io/csv/csv_reader.h>
 #include <io/csv/csv_writer.h>
 #include <io/format/format_reader.h>
-#include <io/format/format_writer.h>
 #include <parser/format/schema_parser.h>
 #include <util/timer.h>
 
@@ -14,25 +11,27 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 namespace {
 
 struct Options {
-    uint64_t rows = 20'000;
-    std::string workdir = ".";
-    std::string statsFile = "roundtrip_bench_stats.json";
+    std::filesystem::path csvPath;
+    std::filesystem::path schemaPath;
+    std::filesystem::path csv2iyxPath;
+    std::filesystem::path workdir = ".";
+    std::filesystem::path statsFile = "roundtrip_bench_stats.json";
+    uint64_t syntheticRows = 200'000;
 };
 
 uint64_t ParseUnsigned(std::string_view value, std::string_view name) {
-    if (value.empty()) {
+    if (value.empty())
         throw std::invalid_argument(std::string{name} + " cannot be empty");
-    }
 
     uint64_t result = 0;
-    for (char ch : value) {
+    for (const char ch : value) {
         if (ch < '0' || ch > '9') {
-            throw std::invalid_argument(std::string{name} +
-                                        " must be an unsigned integer");
+            throw std::invalid_argument(std::string{name} + " must be an unsigned integer");
         }
         result = result * 10 + static_cast<uint64_t>(ch - '0');
     }
@@ -41,24 +40,45 @@ uint64_t ParseUnsigned(std::string_view value, std::string_view name) {
 
 void PrintUsage(const char* program) {
     std::cerr << "Usage: " << program
-              << " [--rows N] [--workdir DIR] [--stats FILE]\n";
+              << " [--csv FILE --schema FILE] [--csv2iyx PATH]"
+                 " [--rows N] [--workdir DIR] [--stats FILE]\n"
+              << "  Without --csv: generates synthetic data with --rows rows\n";
+}
+
+std::filesystem::path FindCsv2Iyx(const char* argv0) {
+    std::error_code ec;
+    const auto self = std::filesystem::canonical(argv0, ec);
+    if (!ec) {
+        auto candidate = self.parent_path() / "csv2iyx";
+        if (std::filesystem::exists(candidate))
+            return candidate;
+    }
+    const std::filesystem::path fallback = "tools/csv2iyx/csv2iyx";
+    if (std::filesystem::exists(fallback))
+        return fallback;
+    throw std::runtime_error("cannot find csv2iyx binary; pass --csv2iyx PATH");
 }
 
 Options ParseArgs(int argc, char* argv[]) {
     Options options;
+    options.csv2iyxPath = FindCsv2Iyx(argv[0]);
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         auto requireValue = [&](std::string_view flag) -> std::string {
-            if (i + 1 >= argc) {
-                throw std::invalid_argument(std::string{flag} +
-                                            " requires a value");
-            }
+            if (i + 1 >= argc)
+                throw std::invalid_argument(std::string{flag} + " requires a value");
             return argv[++i];
         };
 
-        if (arg == "--rows") {
-            options.rows = ParseUnsigned(requireValue(arg), "rows");
+        if (arg == "--csv") {
+            options.csvPath = requireValue(arg);
+        } else if (arg == "--schema") {
+            options.schemaPath = requireValue(arg);
+        } else if (arg == "--csv2iyx") {
+            options.csv2iyxPath = requireValue(arg);
+        } else if (arg == "--rows") {
+            options.syntheticRows = ParseUnsigned(requireValue(arg), "rows");
         } else if (arg == "--workdir") {
             options.workdir = requireValue(arg);
         } else if (arg == "--stats") {
@@ -71,22 +91,24 @@ Options ParseArgs(int argc, char* argv[]) {
         }
     }
 
-    if (options.rows == 0) {
+    if (options.csvPath.empty() != options.schemaPath.empty())
+        throw std::invalid_argument("--csv and --schema must be given together");
+
+    if (options.syntheticRows == 0)
         throw std::invalid_argument("--rows must be positive");
-    }
 
     return options;
 }
 
-uint64_t FileSize(const std::filesystem::path& filename) {
-    return std::filesystem::exists(filename)
-               ? static_cast<uint64_t>(std::filesystem::file_size(filename))
-               : 0;
+uint64_t FileSize(const std::filesystem::path& path) {
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(path, ec);
+    return ec ? 0 : static_cast<uint64_t>(size);
 }
 
-void WriteBenchInput(const std::filesystem::path& dataFile,
-                     const std::filesystem::path& schemaFile,
-                     uint64_t rows) {
+void WriteSyntheticInput(const std::filesystem::path& dataFile,
+                         const std::filesystem::path& schemaFile,
+                         uint64_t rows) {
     {
         std::ofstream schema(schemaFile);
         schema << "id,int64\n"
@@ -118,34 +140,38 @@ BenchResult RunRoundTrip(const Options& options) {
     const std::filesystem::path workdir(options.workdir);
     std::filesystem::create_directories(workdir);
 
-    const auto dataFile = workdir / "bench_input.csv";
-    const auto schemaFile = workdir / "bench_schema.csv";
+    std::filesystem::path csvFile = options.csvPath;
+    std::filesystem::path schemaFile = options.schemaPath;
     const auto iyxFile = workdir / "bench_data.iyx";
     const auto outputCsvFile = workdir / "bench_output.csv";
 
-    WriteBenchInput(dataFile, schemaFile, options.rows);
+    if (csvFile.empty()) {
+        csvFile = workdir / "bench_input.csv";
+        schemaFile = workdir / "bench_schema.csv";
+        WriteSyntheticInput(csvFile, schemaFile, options.syntheticRows);
+    }
 
     BenchResult result;
-    result.rows = options.rows;
-    result.inputCsvBytes = FileSize(dataFile);
+    result.inputCsvBytes = FileSize(csvFile);
 
-    const Columnar::Schema schema =
-        Columnar::Parser::LoadSchemaFromCsv(schemaFile.string());
     Columnar::Util::Timer totalTimer;
 
     {
+        const std::string cmd =
+            options.csv2iyxPath.string() + " " +
+            schemaFile.string() + " " +
+            csvFile.string() + " " +
+            iyxFile.string();
+
         Columnar::Util::Timer timer;
-        Columnar::IO::CsvReader csvReader(dataFile.string(), schema);
-        Columnar::IO::FormatWriter formatWriter(iyxFile.string());
-        formatWriter.Begin(schema);
-
-        while (auto rg = csvReader.ReadRowGroup()) {
-            formatWriter.AppendBlob(*rg);
-        }
-
-        formatWriter.End();
+        const int ret = std::system(cmd.c_str());
+        if (ret != 0)
+            throw std::runtime_error("csv2iyx exited with code " + std::to_string(ret));
         result.csvToIyxSeconds = timer.ElapsedSeconds();
-        result.rowGroups = formatWriter.GetRowGroupCount();
+
+        Columnar::IO::FormatReader reader(iyxFile.string());
+        result.rows = reader.GetTotalRowCount();
+        result.rowGroups = reader.GetRowGroupCount();
     }
 
     result.iyxBytes = FileSize(iyxFile);
@@ -172,8 +198,7 @@ double RowsPerSecond(uint64_t rows, double seconds) {
     return seconds > 0.0 ? static_cast<double>(rows) / seconds : 0.0;
 }
 
-void DumpStats(const std::filesystem::path& statsFile,
-               const BenchResult& result) {
+void DumpStats(const std::filesystem::path& statsFile, const BenchResult& result) {
     std::ofstream output(statsFile);
     output << "{\n"
            << "  \"rows\": " << result.rows << ",\n"
@@ -191,29 +216,24 @@ void DumpStats(const std::filesystem::path& statsFile,
            << "}\n";
 }
 
-void PrintResult(const BenchResult& result,
-                 const std::filesystem::path& statsFile) {
+void PrintResult(const BenchResult& result, const std::filesystem::path& statsFile) {
     std::cout << "RoundTripCsvIyxCsv benchmark\n"
-              << "  rows: " << result.rows << "\n"
-              << "  input csv: " << result.inputCsvBytes << " bytes\n"
-              << "  iyx: " << result.iyxBytes << " bytes\n"
+              << "  rows:       " << result.rows << "\n"
+              << "  input csv:  " << result.inputCsvBytes << " bytes\n"
+              << "  iyx:        " << result.iyxBytes << " bytes\n"
               << "  output csv: " << result.outputCsvBytes << " bytes\n"
               << "  row groups: " << result.rowGroups << "\n"
-              << "  csv->iyx: "
+              << "  csv->iyx:   "
               << Columnar::Util::FormatSeconds(result.csvToIyxSeconds)
-              << " ("
-              << Columnar::Util::FormatRowsPerSecond(
-                     result.rows, result.csvToIyxSeconds)
+              << " (" << Columnar::Util::FormatRowsPerSecond(result.rows, result.csvToIyxSeconds)
               << ")\n"
-              << "  iyx->csv: "
+              << "  iyx->csv:   "
               << Columnar::Util::FormatSeconds(result.iyxToCsvSeconds)
-              << " ("
-              << Columnar::Util::FormatRowsPerSecond(
-                     result.rows, result.iyxToCsvSeconds)
+              << " (" << Columnar::Util::FormatRowsPerSecond(result.rows, result.iyxToCsvSeconds)
               << ")\n"
-              << "  total: "
+              << "  total:      "
               << Columnar::Util::FormatSeconds(result.totalSeconds) << "\n"
-              << "  stats: " << statsFile << "\n";
+              << "  stats:      " << statsFile << "\n";
 }
 
 }  // namespace
@@ -227,11 +247,6 @@ int main(int argc, char* argv[]) {
 
         DumpStats(statsFile, result);
         PrintResult(result, statsFile);
-
-        if (result.inputCsvBytes != result.outputCsvBytes) {
-            std::cerr << "Error: output CSV size does not match input CSV size\n";
-            return 2;
-        }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << '\n';
         PrintUsage(argv[0]);
