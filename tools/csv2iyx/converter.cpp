@@ -12,7 +12,6 @@
 #include <core/types.h>
 #include <util/int128.h>
 
-#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstring>
@@ -39,20 +38,50 @@ std::vector<std::pair<size_t, size_t>> SplitFile(
     result.reserve(numChunks);
 
     const size_t targetSize = fileSize / numChunks;
-    size_t start = 0;
+    size_t chunkStart = 0;
+    size_t pos = 0;
+    bool inQuotes = false;
 
     for (size_t i = 0; i < numChunks; ++i) {
-        if (i == numChunks - 1 || start >= fileSize) {
-            if (start < fileSize)
-                result.push_back({start, fileSize - start});
+        if (i == numChunks - 1 || chunkStart >= fileSize) {
+            if (chunkStart < fileSize)
+                result.push_back({chunkStart, fileSize - chunkStart});
             break;
         }
-        size_t end = std::min(start + targetSize, fileSize);
-        while (end < fileSize && data[end] != '\n') ++end;
-        if (end < fileSize)
-            ++end;
-        result.push_back({start, end - start});
-        start = end;
+
+        const size_t target = chunkStart + targetSize;
+
+        while (pos < target && pos < fileSize) {
+            if (data[pos] == '"') {
+                if (inQuotes && pos + 1 < fileSize && data[pos + 1] == '"')
+                    pos += 2;
+                else {
+                    inQuotes = !inQuotes;
+                    ++pos;
+                }
+            } else {
+                ++pos;
+            }
+        }
+
+        while (pos < fileSize) {
+            if (data[pos] == '"') {
+                if (inQuotes && pos + 1 < fileSize && data[pos + 1] == '"')
+                    pos += 2;
+                else {
+                    inQuotes = !inQuotes;
+                    ++pos;
+                }
+            } else if (data[pos] == '\n' && !inQuotes) {
+                ++pos;
+                break;
+            } else {
+                ++pos;
+            }
+        }
+
+        result.push_back({chunkStart, pos - chunkStart});
+        chunkStart = pos;
     }
 
     return result;
@@ -116,18 +145,41 @@ void ParseChunk(
     const char* end = ptr + length;
 
     while (ptr < end) {
-        const char* nl = static_cast<const char*>(std::memchr(ptr, '\n', end - ptr));
-        const char* lineEnd = nl ? nl : end;
+        std::string row;
+        bool inQuotes = false;
 
-        std::string_view line(ptr, lineEnd - ptr);
-        if (!line.empty() && line.back() == '\r')
-            line.remove_suffix(1);
-        ptr = lineEnd + (nl ? 1 : 0);
+        while (ptr < end) {
+            const char* nl = static_cast<const char*>(std::memchr(ptr, '\n', end - ptr));
+            const char* lineEnd = nl ? nl : end;
 
-        if (line.empty())
+            std::string_view seg(ptr, lineEnd - ptr);
+            if (!seg.empty() && seg.back() == '\r')
+                seg.remove_suffix(1);
+            ptr = lineEnd + (nl ? 1 : 0);
+
+            if (!row.empty())
+                row += '\n';
+            row.append(seg);
+
+            for (size_t k = 0; k < seg.size(); ++k) {
+                if (seg[k] == '"') {
+                    if (inQuotes && k + 1 < seg.size() && seg[k + 1] == '"') {
+                        ++k;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                }
+            }
+            if (!inQuotes) {
+                break;
+            }
+        }
+
+        if (row.empty()) {
             continue;
+        }
 
-        auto fields = Parser::ParseCsvLine(std::string(line));
+        auto fields = Parser::ParseCsvLine(row);
         if (fields.size() != colCount)
             throw std::runtime_error(
                 "field count mismatch in chunk " + std::to_string(chunkIdx) +
