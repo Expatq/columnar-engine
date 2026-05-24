@@ -57,6 +57,9 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 
+# FetchContent_MakeAvailable is not usable here because tcmalloc is built via
+# Bazel, not CMake. CMP0169 allows the deprecated direct FetchContent_Populate call.
+cmake_policy(SET CMP0169 OLD)
 FetchContent_Populate(google_tcmalloc)
 
 set(COLUMNAR_TCMALLOC_BRIDGE_DIR
