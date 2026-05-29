@@ -25,19 +25,10 @@ if(NOT COLUMNAR_USE_TCMALLOC)
     return()
 endif()
 
-if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    message(FATAL_ERROR
-        "google/tcmalloc is enabled, but this project currently supports only Linux x86-64. "
-        "Reconfigure with -DCOLUMNAR_USE_TCMALLOC=OFF to bypass allocator integration."
-    )
-endif()
-
-if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
-    message(FATAL_ERROR
-        "google/tcmalloc is enabled, but this project currently supports only Linux x86-64. "
-        "Detected processor: ${CMAKE_SYSTEM_PROCESSOR}. "
-        "Reconfigure with -DCOLUMNAR_USE_TCMALLOC=OFF to bypass allocator integration."
-    )
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
+   NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+    message(STATUS "google/tcmalloc: disabled (requires Linux x86-64, got ${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR})")
+    return()
 endif()
 
 find_program(COLUMNAR_BAZELISK_EXECUTABLE bazelisk)
