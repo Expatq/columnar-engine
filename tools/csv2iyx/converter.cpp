@@ -12,16 +12,20 @@
 #include <core/types.h>
 #include <util/int128.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <algorithm>
 #include <atomic>
-#include <condition_variable>
+#include <cerrno>
 #include <cstring>
 #include <exception>
 #include <functional>
 #include <mutex>
-#include <queue>
-#include <semaphore>
 #include <stdexcept>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace Columnar {
@@ -29,8 +33,7 @@ namespace Columnar {
 namespace {
 
 constexpr size_t kChunksPerThread = 8;
-constexpr size_t kMaxInFlightFactor = 2;
-constexpr std::ptrdiff_t kMaxSemaphoreCount = 4096;
+constexpr mode_t kSegmentFileMode = 0644;
 
 std::vector<std::pair<size_t, size_t>> SplitFile(
     const uint8_t* data, size_t fileSize, size_t numChunks) {
@@ -92,12 +95,22 @@ struct TaggedRowGroup {
     size_t rgIdx;
     bool isLastInChunk;
     RowGroup rg;
+};
 
-    bool operator>(const TaggedRowGroup& o) const {
-        if (chunkIdx != o.chunkIdx)
-            return chunkIdx > o.chunkIdx;
-        return rgIdx > o.rgIdx;
-    }
+struct SegmentEntry {
+    size_t chunkIdx;
+    size_t rgIdx;
+    uint64_t blobOffset;
+    uint64_t blobSize;
+    uint32_t rowCount;
+    std::vector<ColStats> stats;
+};
+
+struct WorkerSegment {
+    std::string path;
+    int fd = -1;
+    uint64_t pos = 0;
+    std::vector<SegmentEntry> entries;
 };
 
 void AppendParsedToBuffer(Types::AnyColumnData& buf, const Types::AnyPhysicalType& val) {
@@ -199,6 +212,95 @@ void ParseChunk(
     flushRg(/*isLast=*/true);
 }
 
+// pwrite/pread loops that handle short writes/reads.
+
+void WriteAll(int fd, uint64_t offset, const void* src, size_t n) {
+    const auto* p = static_cast<const uint8_t*>(src);
+    while (n > 0) {
+        const ssize_t w = ::pwrite(fd, p, n, static_cast<off_t>(offset));
+        if (w < 0) {
+            if (errno == EINTR)
+                continue;
+            throw std::runtime_error(
+                std::string{"pwrite failed: "} + std::strerror(errno));
+        }
+        if (w == 0)
+            throw std::runtime_error("pwrite returned 0");
+        n -= static_cast<size_t>(w);
+        p += w;
+        offset += static_cast<uint64_t>(w);
+    }
+}
+
+void ReadAll(int fd, uint64_t offset, void* dst, size_t n) {
+    auto* p = static_cast<uint8_t*>(dst);
+    while (n > 0) {
+        const ssize_t r = ::pread(fd, p, n, static_cast<off_t>(offset));
+        if (r < 0) {
+            if (errno == EINTR)
+                continue;
+            throw std::runtime_error(
+                std::string{"pread failed: "} + std::strerror(errno));
+        }
+        if (r == 0)
+            throw std::runtime_error("unexpected EOF in segment file");
+        n -= static_cast<size_t>(r);
+        p += r;
+        offset += static_cast<uint64_t>(r);
+    }
+}
+
+void CleanupSegments(std::vector<WorkerSegment>& segments) {
+    for (auto& s : segments) {
+        if (s.fd >= 0) {
+            ::close(s.fd);
+            s.fd = -1;
+        }
+        if (!s.path.empty())
+            ::unlink(s.path.c_str());
+    }
+}
+
+void MergeSegmentsIntoWriter(IO::FormatWriter& writer,
+                             std::vector<WorkerSegment>& segments) {
+    using Ref = std::pair<size_t, size_t>;  // (segmentIdx, entryIdx)
+    std::vector<Ref> refs;
+    size_t total = 0;
+    for (const auto& s : segments) total += s.entries.size();
+    refs.reserve(total);
+
+    for (size_t s = 0; s < segments.size(); ++s)
+        for (size_t e = 0; e < segments[s].entries.size(); ++e)
+            refs.emplace_back(s, e);
+
+    std::sort(refs.begin(), refs.end(), [&](Ref a, Ref b) {
+        const auto& ea = segments[a.first].entries[a.second];
+        const auto& eb = segments[b.first].entries[b.second];
+        if (ea.chunkIdx != eb.chunkIdx)
+            return ea.chunkIdx < eb.chunkIdx;
+        return ea.rgIdx < eb.rgIdx;
+    });
+
+    std::vector<uint8_t> buf;
+    for (auto [s, e] : refs) {
+        const auto& seg = segments[s];
+        auto& ent = segments[s].entries[e];
+        if (ent.rowCount == 0)
+            continue;
+
+        buf.resize(ent.blobSize);
+        ReadAll(seg.fd, ent.blobOffset, buf.data(), ent.blobSize);
+
+        IO::FormatWriter::EncodedRowGroup enc;
+        enc.blob = std::move(buf);
+        enc.stats = std::move(ent.stats);
+        enc.rowCount = ent.rowCount;
+        writer.AppendEncoded(std::move(enc));
+
+        buf.clear();
+    }
+}
+
 }  // namespace
 
 void Run(const ConvertOptions& opts) {
@@ -213,95 +315,87 @@ void Run(const ConvertOptions& opts) {
     const size_t fileSize = csvFile.GetFileSize();
 
     const size_t numChunks = numThreads * kChunksPerThread;
-    const size_t maxInFlight = numThreads * kMaxInFlightFactor;
-
     auto chunks = SplitFile(data, fileSize, numChunks);
 
-    std::counting_semaphore<kMaxSemaphoreCount> semaphore(static_cast<std::ptrdiff_t>(maxInFlight));
+    std::vector<WorkerSegment> segments(numThreads);
+    for (size_t t = 0; t < numThreads; ++t) {
+        segments[t].path = opts.iyxPath + ".seg." + std::to_string(t);
+        segments[t].fd = ::open(segments[t].path.c_str(),
+                                O_RDWR | O_CREAT | O_TRUNC,
+                                kSegmentFileMode);
+        if (segments[t].fd < 0) {
+            CleanupSegments(segments);
+            throw std::runtime_error(
+                "cannot create segment file " + segments[t].path +
+                ": " + std::strerror(errno));
+        }
+    }
 
     std::atomic<size_t> nextChunk{0};
-    std::mutex mtx;
-    std::condition_variable cv;
+    std::atomic<bool> abort{false};
+    std::mutex errMtx;
     std::exception_ptr firstError;
 
-    using Heap = std::priority_queue<
-        TaggedRowGroup, std::vector<TaggedRowGroup>, std::greater<TaggedRowGroup>>;
-    Heap ready;
-
-    std::vector<std::jthread> workers;
+    std::vector<std::thread> workers;
     workers.reserve(numThreads);
 
     for (size_t t = 0; t < numThreads; ++t) {
-        workers.emplace_back([&](std::stop_token stoken) {
-            while (!stoken.stop_requested()) {
+        workers.emplace_back([&, t]() {
+            WorkerSegment& seg = segments[t];
+
+            while (!abort.load(std::memory_order_relaxed)) {
                 const size_t idx = nextChunk.fetch_add(1, std::memory_order_relaxed);
                 if (idx >= chunks.size())
                     break;
 
                 auto emit = [&](TaggedRowGroup trg) {
-                    semaphore.acquire();
-                    std::lock_guard lock(mtx);
-                    if (!firstError)
-                        ready.push(std::move(trg));
-                    else
-                        semaphore.release();
-                    cv.notify_one();
+                    if (trg.rg.GetRowCount() == 0)
+                        return;
+                    auto enc = IO::FormatWriter::EncodeRowGroup(trg.rg);
+                    const uint64_t blobOffset = seg.pos;
+                    const uint64_t blobSize = enc.blob.size();
+                    WriteAll(seg.fd, blobOffset, enc.blob.data(), blobSize);
+                    seg.pos += blobSize;
+                    seg.entries.push_back(SegmentEntry{
+                        trg.chunkIdx, trg.rgIdx,
+                        blobOffset, blobSize, enc.rowCount,
+                        std::move(enc.stats)});
                 };
 
                 try {
                     ParseChunk(data, chunks[idx].first, chunks[idx].second,
                                schema, idx, opts.rowGroupSize, emit);
                 } catch (...) {
-                    std::lock_guard lock(mtx);
-                    if (!firstError)
-                        firstError = std::current_exception();
-                    cv.notify_one();
+                    {
+                        std::lock_guard lock(errMtx);
+                        if (!firstError)
+                            firstError = std::current_exception();
+                    }
+                    abort.store(true, std::memory_order_relaxed);
+                    return;
                 }
             }
         });
     }
 
-    IO::FormatWriter writer(opts.iyxPath);
-    writer.Begin(schema);
+    for (auto& w : workers) w.join();
 
-    size_t expectedChunk = 0;
-    size_t expectedRg = 0;
-
-    while (expectedChunk < chunks.size()) {
-        std::unique_lock lock(mtx);
-        cv.wait(lock, [&] {
-            return firstError || (!ready.empty() && ready.top().chunkIdx == expectedChunk && ready.top().rgIdx == expectedRg);
-        });
-
-        if (firstError) {
-            for (auto& w : workers) w.request_stop();
-            lock.unlock();
-            workers.clear();
-            std::rethrow_exception(firstError);
-        }
-
-        TaggedRowGroup trg = std::move(const_cast<TaggedRowGroup&>(ready.top()));
-        ready.pop();
-        lock.unlock();
-
-        if (trg.rg.GetRowCount() > 0)
-            writer.AppendBlob(trg.rg);
-
-        semaphore.release();
-
-        if (trg.isLastInChunk) {
-            ++expectedChunk;
-            expectedRg = 0;
-        } else {
-            ++expectedRg;
-        }
+    if (firstError) {
+        CleanupSegments(segments);
+        std::rethrow_exception(firstError);
     }
 
-    workers.clear();
-    if (firstError)
-        std::rethrow_exception(firstError);
+    try {
+        IO::FormatWriter writer(opts.iyxPath);
+        writer.Begin(schema);
+        MergeSegmentsIntoWriter(writer, segments);
+        writer.End();
+    } catch (...) {
+        CleanupSegments(segments);
+        throw;
+    }
 
-    writer.End();
+    CleanupSegments(segments);
 }
 
 }  // namespace Columnar

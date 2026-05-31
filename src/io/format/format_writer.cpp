@@ -183,6 +183,11 @@ void FormatWriter::AppendBlob(const RowGroup& rg) {
     WriteEncoded(EncodeRowGroup(rg));
 }
 
+void FormatWriter::AppendEncoded(EncodedRowGroup encRg) {
+    COLUMNAR_ASSERT(begun_ && !ended_, "not in progress");
+    WriteEncoded(std::move(encRg));
+}
+
 void FormatWriter::WriteEncoded(EncodedRowGroup enc) {
     const uint64_t rgOffset = static_cast<uint64_t>(writer_.GetPosition());
     writer_.Write(enc.blob.data(), enc.blob.size());

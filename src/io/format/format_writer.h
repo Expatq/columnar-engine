@@ -25,16 +25,6 @@ public:
     FormatWriter(FormatWriter&&) noexcept = default;
     FormatWriter& operator=(FormatWriter&&) noexcept = default;
 
-    void Begin(const Schema& schema);
-
-    void AppendBlob(const RowGroup& rg);
-
-    void End();
-
-    size_t GetRowGroupCount() const;
-    size_t GetTotalRowsWritten() const;
-
-private:
     struct EncodedRowGroup {
         std::vector<uint8_t> blob;
         std::vector<ColStats> stats;
@@ -43,6 +33,18 @@ private:
 
     static EncodedRowGroup EncodeRowGroup(const RowGroup& rg);
 
+    void Begin(const Schema& schema);
+
+    void AppendBlob(const RowGroup& rg);
+
+    void AppendEncoded(EncodedRowGroup encRg);
+
+    void End();
+
+    size_t GetRowGroupCount() const;
+    size_t GetTotalRowsWritten() const;
+
+private:
     FileWriter writer_;
     Schema schema_;
 
