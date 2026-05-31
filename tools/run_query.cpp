@@ -4,7 +4,9 @@
 #include <exec/core/operator_runner.h>
 #include <exec/query/clickbench_queries.h>
 #include <parser/format/serialize_to_string.h>
+#include <util/timer.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -56,8 +58,11 @@ int main(int argc, char** argv) {
 
         auto root = Columnar::Exec::BuildQuery(path, queryId);
         Columnar::Exec::OperatorRunner runner(*root);
+
+        Columnar::Util::Timer timer;
         runner.Open();
 
+        size_t resultRows = 0;
         Columnar::Exec::ExecBatch batch;
         while (runner.Next(batch)) {
             if (!batch.rowGroup) {
@@ -66,15 +71,20 @@ int main(int argc, char** argv) {
             if (batch.has_selection) {
                 for (const auto row : batch.selection.Rows()) {
                     WriteRow(*batch.rowGroup, row);
+                    ++resultRows;
                 }
             } else {
                 for (size_t row = 0; row < batch.rowCount; ++row) {
                     WriteRow(*batch.rowGroup, row);
+                    ++resultRows;
                 }
             }
         }
 
         runner.Close();
+        const int64_t elapsedMs = timer.ElapsedMilliseconds();
+        std::cerr << "query=" << queryId << " elapsed_ms=" << elapsedMs
+                  << " rows=" << resultRows << '\n';
         return EXIT_SUCCESS;
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << '\n';
