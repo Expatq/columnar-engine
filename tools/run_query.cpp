@@ -1,9 +1,12 @@
-#include <core/row_group.h>
-#include <core/schema.h>
 #include <exec/core/exec_batch.h>
 #include <exec/core/operator_runner.h>
 #include <exec/query/clickbench_queries.h>
+
 #include <parser/format/serialize_to_string.h>
+
+#include <core/row_group.h>
+#include <core/schema.h>
+
 #include <util/timer.h>
 
 #include <cstdint>
