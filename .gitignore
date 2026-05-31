@@ -64,4 +64,4 @@ src/io/format/lib
 
 columnar-engine-docs
 build-release
-
+scripts-test
