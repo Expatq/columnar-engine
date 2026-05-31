@@ -4,7 +4,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get install -y --no-install-recommends \
-    build-essential ninja-build clang curl ca-certificates gpg
+    build-essential ninja-build clang llvm curl ca-certificates gpg
 
 # Install CMake from Kitware's official APT repo (system cmake may be broken/missing).
 curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc \
