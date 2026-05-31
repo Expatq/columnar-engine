@@ -10,7 +10,7 @@ fi
 INPUT_CSV="$1"
 COLUMNAR="$2"
 SCHEMA="${ROOT_DIR}/script/hits.schema"
-BIN="${ROOT_DIR}/build/tools/csv2iyx"
+BIN="${ROOT_DIR}/build/tools/csv2iyx/csv2iyx"
 
 mkdir -p "$(dirname "${COLUMNAR}")"
 "${BIN}" "${SCHEMA}" "${INPUT_CSV}" "${COLUMNAR}"
