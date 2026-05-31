@@ -24,3 +24,7 @@ target_link_libraries(
     absl::inlined_vector
     absl::span
 )
+
+if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/ut/CMakeLists.txt)
+    add_subdirectory(ut)
+endif()

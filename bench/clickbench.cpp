@@ -4,18 +4,22 @@
 
 #include <io/format/format_reader.h>
 
+#include <parser/format/serialize_to_string.h>
+
 #include <util/timer.h>
 
 #include <unistd.h>
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -33,6 +37,8 @@ struct Options {
     std::filesystem::path conversionStatsPath =
         "clickbench_conversion_stats.csv";
     std::filesystem::path queryStatsPath = "clickbench_query_stats.csv";
+    std::filesystem::path answersDir;
+    std::filesystem::path dumpAnswersDir;
     size_t runs = 1;
     bool reuseIyx = false;
     bool continueOnError = false;
@@ -60,14 +66,18 @@ struct QueryRunStats {
     size_t resultBatches = 0;
     size_t resultRows = 0;
     std::string error;
+    bool validationSkipped = false;
+    bool validationOk = false;
+    bool validationAmbiguous = false;
+    std::string validationError;
 };
 
 [[noreturn]] void Usage(const char* program) {
     std::cerr
         << "Usage: " << program << " --csv RELATIVE_PATH "
-        << "[--schema FILE] [--iyx FILE] [--csv2iyx PATH] [--timings FILE] "
-        << "[--conversion-stats FILE] [--query-stats FILE] [--runs N] "
-        << "[--reuse-iyx] [--continue-on-error]\n";
+        << "[--schema FILE] [--iyx FILE] [--csv2iyx PATH] [--answers DIR] "
+        << "[--dump-answers DIR] [--timings FILE] [--conversion-stats FILE] "
+        << "[--query-stats FILE] [--runs N] [--reuse-iyx] [--continue-on-error]\n";
     std::exit(EXIT_FAILURE);
 }
 
@@ -129,6 +139,10 @@ Options ParseArgs(int argc, char** argv) {
             options.iyxPath = RequireValue(argc, argv, i);
         } else if (arg == "--csv2iyx") {
             options.csv2iyxPath = RequireValue(argc, argv, i);
+        } else if (arg == "--answers") {
+            options.answersDir = RequireValue(argc, argv, i);
+        } else if (arg == "--dump-answers") {
+            options.dumpAnswersDir = RequireValue(argc, argv, i);
         } else if (arg == "--timings") {
             options.timingsPath = RequireValue(argc, argv, i);
         } else if (arg == "--conversion-stats") {
@@ -151,14 +165,6 @@ Options ParseArgs(int argc, char** argv) {
 
     if (options.csvPath.empty()) {
         throw std::invalid_argument("--csv is required");
-    }
-    if (options.csvPath.is_absolute()) {
-        throw std::invalid_argument("--csv must be a relative path");
-    }
-    for (const auto& part : options.csvPath) {
-        if (part == "..") {
-            throw std::invalid_argument("--csv must not contain '..'");
-        }
     }
 
     if (options.iyxPath.empty()) {
@@ -187,30 +193,25 @@ void EnsureParentDirectory(const std::filesystem::path& path) {
     }
 }
 
-PreparedCsv RequireExistingCsv(const std::filesystem::path& relativePath) {
-    if (relativePath.empty() || relativePath.is_absolute()) {
-        throw std::invalid_argument("CSV path must be relative");
-    }
-    for (const auto& part : relativePath) {
-        if (part == "..") {
-            throw std::invalid_argument("CSV path must not contain '..'");
-        }
+PreparedCsv RequireExistingCsv(const std::filesystem::path& path) {
+    if (path.empty()) {
+        throw std::invalid_argument("CSV path must not be empty");
     }
 
-    if (!std::filesystem::exists(relativePath)) {
+    if (!std::filesystem::exists(path)) {
         throw std::runtime_error("CSV file does not exist: " +
-                                 relativePath.string());
+                                 path.string());
     }
-    if (!std::filesystem::is_regular_file(relativePath)) {
+    if (!std::filesystem::is_regular_file(path)) {
         throw std::runtime_error("CSV path is not a regular file: " +
-                                 relativePath.string());
+                                 path.string());
     }
-    if (FileSize(relativePath) == 0) {
+    if (FileSize(path) == 0) {
         throw std::runtime_error("CSV file is empty: " +
-                                 relativePath.string());
+                                 path.string());
     }
 
-    return {.path = relativePath};
+    return {.path = path};
 }
 
 ConversionStats ConvertCsvToIyx(const std::filesystem::path& csv2iyxPath,
@@ -260,13 +261,116 @@ ConversionStats ConvertCsvToIyx(const std::filesystem::path& csv2iyxPath,
     return stats;
 }
 
-QueryRunStats RunQueryOnce(const std::filesystem::path& iyxPath, size_t queryId, size_t run) {
+std::optional<std::vector<std::string>> LoadReference(
+    const std::filesystem::path& answersDir, size_t queryId) {
+    char name[16];
+    std::snprintf(name, sizeof(name), "query_%02zu.csv", queryId);
+
+    std::ifstream f(answersDir / name);
+    if (!f.is_open())
+        return std::nullopt;
+
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(f, line)) {
+        if (!line.empty())
+            lines.push_back(std::move(line));
+    }
+    return lines;
+}
+
+void DumpCollected(const std::filesystem::path& dir, size_t queryId,
+                   const std::vector<std::string>& collected) {
+    std::filesystem::create_directories(dir);
+    char name[16];
+    std::snprintf(name, sizeof(name), "query_%02zu.csv", queryId);
+    std::ofstream f(dir / name);
+    for (const auto& line : collected)
+        f << line << '\n';
+}
+
+static void AppendCsvField(std::string& line, const std::string& val) {
+    if (val.find_first_of(",\"\n\r") == std::string::npos) {
+        line += val;
+        return;
+    }
+    line += '"';
+    for (const char ch : val) {
+        if (ch == '"')
+            line += '"';
+        line += ch;
+    }
+    line += '"';
+}
+
+std::string SerialiseRow(const Columnar::Exec::ExecBatch& batch, size_t rid) {
+    const Columnar::RowGroup& rg = *batch.rowGroup;
+    const Columnar::Schema& schema = rg.GetSchema();
+    const size_t ncols = rg.GetColumnCount();
+
+    std::string line;
+    for (size_t c = 0; c < ncols; ++c) {
+        if (c > 0)
+            line += ',';
+        AppendCsvField(line, Columnar::Parser::FormatColumn(
+                                 rg.GetColumn(c), rid, schema.GetColumn(c).logical));
+    }
+    return line;
+}
+
+struct ValidateResult {
+    bool ok = false;
+    bool ambiguous = false;
+    std::string error;
+};
+
+ValidateResult Validate(const std::vector<std::string>& collected,
+                        const std::vector<std::string>& reference) {
+    if (collected.size() != reference.size()) {
+        return {.error = "row count: got " + std::to_string(collected.size()) +
+                         ", expected " + std::to_string(reference.size())};
+    }
+
+    bool exact = true;
+    for (size_t i = 0; i < collected.size(); ++i) {
+        if (collected[i] != reference[i]) {
+            exact = false;
+            break;
+        }
+    }
+    if (exact)
+        return {.ok = true};
+
+    auto sc = collected;
+    auto sr = reference;
+    std::sort(sc.begin(), sc.end());
+    std::sort(sr.begin(), sr.end());
+    if (sc == sr)
+        return {.ambiguous = true};
+
+    for (size_t i = 0; i < collected.size(); ++i) {
+        if (collected[i] != reference[i]) {
+            return {.error = "row " + std::to_string(i) + ":\n  got:      " +
+                             collected[i] + "\n  expected: " + reference[i]};
+        }
+    }
+    return {};
+}
+
+QueryRunStats RunQueryOnce(const std::filesystem::path& iyxPath,
+                           size_t queryId, size_t run,
+                           const std::filesystem::path& answersDir,
+                           const std::filesystem::path& dumpAnswersDir) {
     QueryRunStats stats;
     stats.queryId = queryId;
     stats.run = run;
 
     auto root = Columnar::Exec::BuildQuery(iyxPath.string(), queryId);
     Columnar::Exec::OperatorRunner runner(*root);
+
+    std::vector<std::string> collected;
+    const bool doValidate = !answersDir.empty();
+    const bool doDump = !dumpAnswersDir.empty() && run == 0;
 
     Columnar::Util::Timer timer;
     try {
@@ -276,6 +380,16 @@ QueryRunStats RunQueryOnce(const std::filesystem::path& iyxPath, size_t queryId,
         while (runner.Next(batch)) {
             ++stats.resultBatches;
             stats.resultRows += batch.ActiveRowCount();
+
+            if (doValidate || doDump) {
+                if (batch.has_selection) {
+                    for (const auto rid : batch.selection.Rows())
+                        collected.push_back(SerialiseRow(batch, rid));
+                } else {
+                    for (size_t rid = 0; rid < batch.rowCount; ++rid)
+                        collected.push_back(SerialiseRow(batch, rid));
+                }
+            }
         }
 
         runner.Close();
@@ -285,6 +399,21 @@ QueryRunStats RunQueryOnce(const std::filesystem::path& iyxPath, size_t queryId,
         runner.Close();
         stats.elapsedMs = timer.ElapsedMilliseconds();
         stats.error = e.what();
+    }
+
+    if (stats.ok && doDump)
+        DumpCollected(dumpAnswersDir, queryId, collected);
+
+    if (stats.ok && doValidate) {
+        auto ref = LoadReference(answersDir, queryId);
+        if (!ref) {
+            stats.validationSkipped = true;
+        } else {
+            auto res = Validate(collected, *ref);
+            stats.validationOk = res.ok;
+            stats.validationAmbiguous = res.ambiguous;
+            stats.validationError = res.error;
+        }
     }
 
     return stats;
@@ -343,6 +472,16 @@ void WriteConversionStats(const std::filesystem::path& path,
         << compressionRatio << '\n';
 }
 
+std::string_view ValidationLabel(const QueryRunStats& s) {
+    if (s.validationSkipped)
+        return "skip";
+    if (s.validationOk)
+        return "ok";
+    if (s.validationAmbiguous)
+        return "ambiguous";
+    return "fail";
+}
+
 void WriteQueryStats(const std::filesystem::path& path,
                      const std::vector<QueryRunStats>& stats) {
     EnsureParentDirectory(path);
@@ -351,7 +490,8 @@ void WriteQueryStats(const std::filesystem::path& path,
         throw std::runtime_error("cannot write query stats: " + path.string());
     }
 
-    out << "query,run,status,elapsed_ms,result_batches,result_rows,error\n";
+    out << "query,run,status,elapsed_ms,result_batches,result_rows,error,"
+           "validation,validation_error\n";
     for (const auto& s : stats) {
         out << 'q' << s.queryId << ','
             << s.run << ','
@@ -360,6 +500,10 @@ void WriteQueryStats(const std::filesystem::path& path,
             << s.resultBatches << ','
             << s.resultRows << ',';
         for (const char ch : s.error) {
+            out << (ch == ',' || ch == '\n' || ch == '\r' ? ' ' : ch);
+        }
+        out << ',' << ValidationLabel(s) << ',';
+        for (const char ch : s.validationError) {
             out << (ch == ',' || ch == '\n' || ch == '\r' ? ' ' : ch);
         }
         out << '\n';
@@ -396,13 +540,20 @@ int main(int argc, char** argv) {
         allRuns.reserve(Columnar::Exec::kClickBenchQueryCount * options.runs);
         medianTimesMs.reserve(Columnar::Exec::kClickBenchQueryCount);
 
+        size_t validationOkCount = 0;
+        size_t validationAmbiguousCount = 0;
+        size_t validationFailCount = 0;
+        size_t validationSkipCount = 0;
+        const bool doValidate = !options.answersDir.empty();
+
         for (size_t queryId = 0; queryId < Columnar::Exec::kClickBenchQueryCount; ++queryId) {
             std::vector<QueryRunStats> queryRuns;
             queryRuns.reserve(options.runs);
 
             for (size_t run = 0; run < options.runs; ++run) {
-                QueryRunStats stats =
-                    RunQueryOnce(options.iyxPath, queryId, run);
+                QueryRunStats stats = RunQueryOnce(
+                    options.iyxPath, queryId, run,
+                    options.answersDir, options.dumpAnswersDir);
                 if (!stats.ok && !options.continueOnError) {
                     throw std::runtime_error("q" + std::to_string(queryId) +
                                              " failed: " + stats.error);
@@ -418,9 +569,36 @@ int main(int argc, char** argv) {
                 medianTimesMs.push_back(-1);
             }
 
-            std::cout << 'q' << queryId << ": " << medianTimesMs.back()
-                      << " ms\n"
+            const QueryRunStats& first = queryRuns.front();
+            std::cout << 'q' << queryId << ": " << medianTimesMs.back() << " ms";
+            if (doValidate) {
+                if (first.validationSkipped) {
+                    std::cout << "  [SKIP]";
+                    ++validationSkipCount;
+                } else if (first.validationOk) {
+                    std::cout << "  [OK]";
+                    ++validationOkCount;
+                } else if (first.validationAmbiguous) {
+                    std::cout << "  [AMBIGUOUS] row order differs from reference";
+                    ++validationAmbiguousCount;
+                } else {
+                    std::cout << "  [FAIL] " << first.validationError;
+                    ++validationFailCount;
+                }
+            }
+            std::cout << '\n'
                       << std::flush;
+        }
+
+        if (doValidate) {
+            std::cout << "Validation: "
+                      << validationOkCount << " ok, "
+                      << validationAmbiguousCount << " ambiguous, "
+                      << validationFailCount << " failed, "
+                      << validationSkipCount << " skipped\n";
+        }
+        if (!options.dumpAnswersDir.empty()) {
+            std::cout << "  answers dumped to: " << options.dumpAnswersDir << '\n';
         }
 
         WriteMainTimings(options.timingsPath, medianTimesMs);

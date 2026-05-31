@@ -1,11 +1,7 @@
 #include <io/format/bitpack.h>
 
-#ifdef __AVX2__
-#include <immintrin.h>
-#endif
-
 #include <climits>
-#include <cstring>
+#include <cstdint>
 #include <vector>
 
 namespace Columnar::IO {
@@ -29,8 +25,8 @@ void BitpackEncode(const uint32_t* values, size_t n, uint8_t bitWidth, uint8_t* 
         dst[bi] = static_cast<uint8_t>(buf);
 }
 
-static void DecodeScalarI32(const uint8_t* src, size_t n, uint8_t bitWidth,
-                            int64_t minVal, int32_t* dst) {
+static void DecodeI32(const uint8_t* src, size_t n, uint8_t bitWidth,
+                      int64_t minVal, int32_t* dst) {
     constexpr unsigned kUInt32Bits = sizeof(uint32_t) * CHAR_BIT;
     const uint32_t mask = (bitWidth == kUInt32Bits) ? ~0u : ((1u << bitWidth) - 1u);
     uint64_t buf = 0;
@@ -48,56 +44,28 @@ static void DecodeScalarI32(const uint8_t* src, size_t n, uint8_t bitWidth,
     }
 }
 
-#ifdef __AVX2__
-
-static void DecodeAvx8(const uint8_t* src, size_t n, int64_t minVal, int32_t* dst) {
-    const __m256i vMin = _mm256_set1_epi32(static_cast<int32_t>(minVal));
-    size_t i = 0;
-
-    for (; i + 8 <= n; i += 8, src += 8) {
-        __m128i raw = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(src));
-        __m256i vals = _mm256_cvtepu8_epi32(raw);
-        _mm256_storeu_si256(reinterpret_cast<__m256i*>(dst + i),
-                            _mm256_add_epi32(vals, vMin));
-    }
-
-    for (; i < n; ++i)
-        dst[i] = static_cast<int32_t>(static_cast<int64_t>(src[i]) + minVal);
+// uint8 → int32 widen + add. Compiles to vpmovzxbd + vpaddd with -O3 -march=native.
+static void DecodeI32_8(const uint8_t* src, size_t n, int64_t minVal, int32_t* dst) {
+    const auto base = static_cast<int32_t>(minVal);
+    for (size_t i = 0; i < n; ++i)
+        dst[i] = static_cast<int32_t>(src[i]) + base;
 }
 
-static void DecodeAvx16(const uint8_t* src, size_t n, int64_t minVal, int32_t* dst) {
-    const __m256i vMin = _mm256_set1_epi32(static_cast<int32_t>(minVal));
-    size_t i = 0;
-
-    for (; i + 8 <= n; i += 8, src += 16) {
-        __m128i raw = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src));
-        __m256i vals = _mm256_cvtepu16_epi32(raw);
-        _mm256_storeu_si256(reinterpret_cast<__m256i*>(dst + i),
-                            _mm256_add_epi32(vals, vMin));
-    }
-
-    for (; i < n; ++i, src += 2) {
-        uint16_t v;
-        std::memcpy(&v, src, 2);
-        dst[i] = static_cast<int32_t>(static_cast<int64_t>(v) + minVal);
-    }
+// uint16 → int32 widen + add. Compiles to vpmovzxwd + vpaddd with -O3 -march=native.
+static void DecodeI32_16(const uint8_t* src, size_t n, int64_t minVal, int32_t* dst) {
+    const auto base = static_cast<int32_t>(minVal);
+    const auto* src16 = reinterpret_cast<const uint16_t*>(src);
+    for (size_t i = 0; i < n; ++i)
+        dst[i] = static_cast<int32_t>(src16[i]) + base;
 }
-
-#endif
 
 void BitpackDecodeI32(const uint8_t* src, size_t n, uint8_t bitWidth,
                       int64_t minVal, int32_t* dst) {
-#ifdef __AVX2__
-    if (bitWidth == 8) {
-        DecodeAvx8(src, n, minVal, dst);
-        return;
-    }
-    if (bitWidth == 16) {
-        DecodeAvx16(src, n, minVal, dst);
-        return;
-    }
-#endif
-    DecodeScalarI32(src, n, bitWidth, minVal, dst);
+    if (bitWidth == 8)
+        return DecodeI32_8(src, n, minVal, dst);
+    if (bitWidth == 16)
+        return DecodeI32_16(src, n, minVal, dst);
+    DecodeI32(src, n, bitWidth, minVal, dst);
 }
 
 void BitpackDecodeI16(const uint8_t* src, size_t n, uint8_t bitWidth,

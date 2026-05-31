@@ -22,6 +22,7 @@ enum class ExpressionKind {
     Arithmetic,
     Like,
     DateTrunc,
+    Extract,
     StringLen,
     RegexReplace,
     CaseWhen,
@@ -51,9 +52,12 @@ enum class ArithmOp {
 enum class DateTruncUnit {
     Minute,
     Hour,
-    Day,
-    Month,
-    Year
+    Day
+};
+
+enum class ExtractField {
+    Minute,
+    Hour
 };
 
 using ColumnSpan = std::variant<std::span<const int16_t>,

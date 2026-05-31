@@ -25,7 +25,9 @@ FileReader::FileReader(const std::string& path) {
         close(fd_);
         throw std::runtime_error("FileReader: empty file: " + path);
     }
+#ifdef __linux__
     posix_fadvise(fd_, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
 }
 
 FileReader::~FileReader() {
@@ -73,7 +75,9 @@ void FileReader::Prefetch(size_t offset, size_t n) const {
     if (offset + n > size_) {
         n = size_ - offset;
     }
+#ifdef __linux__
     posix_fadvise(fd_, static_cast<off_t>(offset), static_cast<off_t>(n), POSIX_FADV_WILLNEED);
+#endif
 }
 
 }  // namespace Columnar::IO

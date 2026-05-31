@@ -6,6 +6,9 @@ include(cmake/compile.cmake)
 include(cmake/dependencies.cmake)
 include(cmake/allocators.cmake)
 
+enable_testing()
+include(cmake/test_helpers.cmake)
+
 add_compile_options(${COLUMNAR_WARNING_FLAGS})
 
 add_subdirectory(src)
