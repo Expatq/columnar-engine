@@ -7,17 +7,18 @@
 
 #include <exec/aggregate/lib/spec.h>
 
-#include <exec/expression/arithmetic.h>
-#include <exec/expression/case_when.h>
-#include <exec/expression/column_ref.h>
-#include <exec/expression/comparison.h>
-#include <exec/expression/date_trunc.h>
-#include <exec/expression/like.h>
-#include <exec/expression/literal.h>
-#include <exec/expression/logical.h>
-#include <exec/expression/not.h>
-#include <exec/expression/regex_replace.h>
-#include <exec/expression/string_len.h>
+#include <exec/expression/arithmetic/arithmetic.h>
+#include <exec/expression/case_when/case_when.h>
+#include <exec/expression/column_ref/column_ref.h>
+#include <exec/expression/comparison/comparison.h>
+#include <exec/expression/date_trunc/date_trunc.h>
+#include <exec/expression/extract/extract.h>
+#include <exec/expression/like/like.h>
+#include <exec/expression/literal/literal.h>
+#include <exec/expression/logical/logical.h>
+#include <exec/expression/not/not.h>
+#include <exec/expression/regex_replace/regex_replace.h>
+#include <exec/expression/string_len/string_len.h>
 
 #include <exec/core/required_columns.h>
 #include <exec/filter/filter.h>
@@ -115,6 +116,10 @@ inline auto Like(std::unique_ptr<IExpression> input, std::string pattern) {
 
 inline auto DateTrunc(std::unique_ptr<IExpression> input, DateTruncUnit unit) {
     return std::make_unique<DateTruncExpression>(std::move(input), unit);
+}
+
+inline auto Extract(std::unique_ptr<IExpression> input, ExtractField field) {
+    return std::make_unique<ExtractExpression>(std::move(input), field);
 }
 
 inline auto Arithm(std::unique_ptr<IExpression> l, ArithmOp op, std::unique_ptr<IExpression> r) {

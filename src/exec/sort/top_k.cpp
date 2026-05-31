@@ -1,7 +1,7 @@
 #include "top_k.h"
 
-#include <exec/interface/operator.h>
 #include <exec/core/selection_vector.h>
+#include <exec/interface/operator.h>
 #include <exec/result_format/row_group_builder.h>
 
 #include <core/row_group.h>
@@ -41,9 +41,12 @@ bool TopK::Next(ExecBatch& out) {
         ProcessBatch(input_);
     }
     out.Reset();
+    produced_ = true;
+    if (schema_.IsEmpty()) {
+        return false;
+    }
     out.rowGroup = std::make_shared<RowGroup>(BuildOutput());
     out.rowCount = out.rowGroup->GetRowCount();
-    produced_ = true;
     return out.rowCount > 0;
 }
 
@@ -147,7 +150,8 @@ RowGroup TopK::BuildOutput() const {
         for (size_t c = 0; c < row.size(); ++c) {
             std::visit([&](const auto& val) {
                 builder.Append<std::decay_t<decltype(val)>>(c, val);
-            },row[c]);
+            },
+                       row[c]);
         }
     }
     return builder.Finish();

@@ -289,6 +289,20 @@ void DumpCollected(const std::filesystem::path& dir, size_t queryId,
         f << line << '\n';
 }
 
+static void AppendCsvField(std::string& line, const std::string& val) {
+    if (val.find_first_of(",\"\n\r") == std::string::npos) {
+        line += val;
+        return;
+    }
+    line += '"';
+    for (const char ch : val) {
+        if (ch == '"')
+            line += '"';
+        line += ch;
+    }
+    line += '"';
+}
+
 std::string SerialiseRow(const Columnar::Exec::ExecBatch& batch, size_t rid) {
     const Columnar::RowGroup& rg = *batch.rowGroup;
     const Columnar::Schema& schema = rg.GetSchema();
@@ -298,8 +312,8 @@ std::string SerialiseRow(const Columnar::Exec::ExecBatch& batch, size_t rid) {
     for (size_t c = 0; c < ncols; ++c) {
         if (c > 0)
             line += ',';
-        line += Columnar::Parser::FormatColumn(
-            rg.GetColumn(c), rid, schema.GetColumn(c).logical);
+        AppendCsvField(line, Columnar::Parser::FormatColumn(
+                                 rg.GetColumn(c), rid, schema.GetColumn(c).logical));
     }
     return line;
 }
@@ -340,7 +354,7 @@ ValidateResult Validate(const std::vector<std::string>& collected,
                              collected[i] + "\n  expected: " + reference[i]};
         }
     }
-    return {};  // unreachable
+    return {};
 }
 
 QueryRunStats RunQueryOnce(const std::filesystem::path& iyxPath,

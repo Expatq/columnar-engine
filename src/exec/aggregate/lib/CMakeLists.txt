@@ -20,3 +20,7 @@ target_link_libraries(
     columnar_exec_result_format
     absl::flat_hash_set
 )
+
+if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/ut/CMakeLists.txt)
+    add_subdirectory(ut)
+endif()

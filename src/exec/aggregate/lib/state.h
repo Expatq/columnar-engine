@@ -2,10 +2,10 @@
 
 #include <util/int128.h>
 
+#include <absl/container/flat_hash_set.h>
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <absl/container/flat_hash_set.h>
 #include <variant>
 
 namespace Columnar::Exec {
@@ -24,7 +24,8 @@ struct AvgState {
     uint64_t count = 0;
 
     int64_t Result() const {
-        return count == 0 ? 0LL : static_cast<int64_t>(static_cast<double>(sum) / static_cast<double>(count));
+        return count == 0 ? 0LL
+                          : static_cast<int64_t>(sum / static_cast<Int128>(count));
     }
 };
 

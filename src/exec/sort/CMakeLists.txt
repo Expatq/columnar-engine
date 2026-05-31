@@ -11,3 +11,7 @@ target_link_libraries(columnar_exec_sort
     columnar_util
     absl::inlined_vector
 )
+
+if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/ut/CMakeLists.txt)
+    add_subdirectory(ut)
+endif()
