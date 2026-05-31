@@ -1,4 +1,5 @@
 #include <core/row_group.h>
+#include <core/schema.h>
 #include <exec/core/exec_batch.h>
 #include <exec/core/operator_runner.h>
 #include <exec/query/clickbench_queries.h>
@@ -6,30 +7,39 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <memory>
 #include <string>
 
 namespace {
 
-void PrintRowGroup(const Columnar::RowGroup& rg) {
-    for (size_t row = 0; row < rg.GetRowCount(); ++row) {
-        for (size_t col = 0; col < rg.GetColumnCount(); ++col) {
-            if (col != 0) {
-                std::cout << '\t';
-            }
-            std::visit(
-                [&](const auto& values) {
-                    using T = typename std::decay_t<decltype(values)>::value_type;
-                    if constexpr (std::is_same_v<T, std::string>) {
-                        std::cout << values[row];
-                    } else {
-                        std::cout << static_cast<long long>(values[row]);
-                    }
-                },
-                rg.GetColumn(col).GetData());
-        }
-        std::cout << '\n';
+void AppendCsvField(std::string& line, const std::string& value) {
+    if (value.find_first_of(",\"\n\r") == std::string::npos) {
+        line += value;
+        return;
     }
+    line += '"';
+    for (const char ch : value) {
+        if (ch == '"') {
+            line += '"';
+        }
+        line += ch;
+    }
+    line += '"';
+}
+
+void WriteRow(const Columnar::RowGroup& rg, size_t row) {
+    const Columnar::Schema& schema = rg.GetSchema();
+    const size_t cols = rg.GetColumnCount();
+
+    std::string line;
+    for (size_t c = 0; c < cols; ++c) {
+        if (c > 0) {
+            line += ',';
+        }
+        AppendCsvField(
+            line, Columnar::Parser::FormatColumn(rg.GetColumn(c), row, schema.GetColumn(c).logical));
+    }
+    line += '\n';
+    std::cout << line;
 }
 
 }  // namespace
@@ -50,8 +60,17 @@ int main(int argc, char** argv) {
 
         Columnar::Exec::ExecBatch batch;
         while (runner.Next(batch)) {
-            if (batch.rowGroup) {
-                PrintRowGroup(*batch.rowGroup);
+            if (!batch.rowGroup) {
+                continue;
+            }
+            if (batch.has_selection) {
+                for (const auto row : batch.selection.Rows()) {
+                    WriteRow(*batch.rowGroup, row);
+                }
+            } else {
+                for (size_t row = 0; row < batch.rowCount; ++row) {
+                    WriteRow(*batch.rowGroup, row);
+                }
             }
         }
 
