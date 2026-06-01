@@ -301,6 +301,26 @@ void MergeSegmentsIntoWriter(IO::FormatWriter& writer,
     }
 }
 
+void RunSingleThreaded(const ConvertOptions& opts, const Schema& schema) {
+    IO::MmapFile csvFile(opts.csvPath);
+    const uint8_t* data = csvFile.Ptr(0);
+    const size_t fileSize = csvFile.GetFileSize();
+
+    csvFile.HintSequential(0, fileSize);
+
+    IO::FormatWriter writer(opts.iyxPath);
+    writer.Begin(schema);
+
+    auto emit = [&](TaggedRowGroup trg) {
+        if (trg.rg.GetRowCount() > 0)
+            writer.AppendBlob(trg.rg);
+    };
+
+    ParseChunk(data, 0, fileSize, schema, 0, opts.rowGroupSize, emit);
+
+    writer.End();
+}
+
 }  // namespace
 
 void Run(const ConvertOptions& opts) {
@@ -308,7 +328,12 @@ void Run(const ConvertOptions& opts) {
 
     const size_t numThreads = opts.numThreads > 0
                                   ? opts.numThreads
-                                  : std::thread::hardware_concurrency();
+                                  : 1;
+
+    if (numThreads == 1) {
+        RunSingleThreaded(opts, schema);
+        return;
+    }
 
     IO::MmapFile csvFile(opts.csvPath);
     const uint8_t* data = csvFile.Ptr(0);
