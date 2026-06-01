@@ -8,7 +8,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <thread>
 
 namespace {
 
@@ -60,7 +59,7 @@ int main(int argc, char* argv[]) {
         }
 
         const size_t effectiveThreads = opts.numThreads > 0
-            ? opts.numThreads : std::thread::hardware_concurrency();
+            ? opts.numThreads : 1;
 
         std::cerr << "Schema:         " << opts.schemaPath << '\n'
                   << "Threads:        " << effectiveThreads << '\n'
